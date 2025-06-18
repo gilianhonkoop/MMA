@@ -75,11 +75,11 @@ class Prompt():
         self.make_suggestions(len(self.suggestions))
         
 
+if __name__ == "__main__":
+    dotenv.load_dotenv()
+    login(os.environ.get("HF_TOKEN"))    
 
-dotenv.load_dotenv()
-login(os.environ.get("HF_TOKEN"))    
-
-image = Image.open("duck.jpg").convert("RGB")
-prompt = Prompt("Turn this into a rubber duck", image, model="google/gemma-3-12b-it")
-suggestions = prompt.make_suggestions(3)
-print(suggestions)
+    image = Image.open("duck.jpg").convert("RGB")
+    prompt = Prompt("Turn this into a rubber duck", image, model="google/gemma-3-12b-it")
+    suggestions = prompt.make_suggestions(3)
+    print(suggestions)

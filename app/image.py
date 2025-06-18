@@ -1,14 +1,10 @@
 import torch
-from diffusers import StableDiffusionPipeline
-from diffusers import StableDiffusionXLPipeline
-import torch
-from diffusers import StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler
-from diffusers.utils import make_image_grid, load_image
+from diffusers import StableDiffusionXLPipeline, StableDiffusionInstructPix2PixPipeline, EulerAncestralDiscreteScheduler
 import os
 from PIL import Image
 
 def generate(prompt):
-# model_id = "CompVis/stable-diffusion-v1-4"
+    # model_id = "CompVis/stable-diffusion-v1-4"
     model_id = "stabilityai/stable-diffusion-xl-base-1.0"
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
