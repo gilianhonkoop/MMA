@@ -1,4 +1,4 @@
-from dash import dcc, callback, Input, Output
+from dash import dcc, html, callback, Input, Output
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from dash.exceptions import PreventUpdate
