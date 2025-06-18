@@ -3,8 +3,13 @@ from dash import dcc, html, callback, Input, Output
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from layouts.user_page import create_user_layout
+# from app.layouts.old_draft_admin_page import create_admin_layout
 from layouts.admin_page import create_admin_layout
-from db import Database
+# from db.database import Database
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../db')))
+from database import Database
 
 app = dash.Dash(__name__, 
                 external_stylesheets=[dbc.themes.BOOTSTRAP],
