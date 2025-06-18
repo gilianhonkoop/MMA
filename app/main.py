@@ -4,6 +4,7 @@ import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from layouts.user_page import create_user_layout
 from layouts.admin_page import create_admin_layout
+from db import Database
 
 app = dash.Dash(__name__, 
                 external_stylesheets=[dbc.themes.BOOTSTRAP],
