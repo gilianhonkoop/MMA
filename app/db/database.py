@@ -1,10 +1,10 @@
 import sqlite3
 import os
 import pandas as pd
-from create import create_images_table
-from create import create_users_table
-from create import create_chats_table
-from create import create_prompts_table
+from .create import create_images_table
+from .create import create_users_table
+from .create import create_chats_table
+from .create import create_prompts_table
 
 default_pandas = True
 

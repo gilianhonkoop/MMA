@@ -14,9 +14,15 @@ from PIL import Image
 from bert_score import score as bertscore
 import numpy as np
 from brisque import BRISQUE
+# from db import Database
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../db')))
-from database import Database
+# Make sure Python can resolve `db` inside `app`
+sys.path.append(os.path.abspath(".."))
+from db.database import Database
+
+# Dataset path
+# dataset_path = "db/mma.db"
+dataset_path = os.path.abspath(os.path.join("..", "db", "mma.db"))
 
 # Logging setup
 import logging
@@ -171,8 +177,11 @@ def toggle_pie_chart_visibility(tab):
 def update_usage_pie_chart(dashboard_data):
     if not dashboard_data or not dashboard_data.get("data_loaded"):
         raise PreventUpdate
-    with Database() as db:
-        df = db.fetch_all_images()
+    with Database(dataset_path) as db:
+        df_images = db.fetch_all_images()
+        df_prompts = db.fetch_all_prompts()
+        df = df_images.merge(df_prompts, left_on="prompt_id", right_on="id", suffixes=("_image", "_prompt"))
+
 
     df['mode'] = df.apply(get_mode, axis=1)
     counts = df['mode'].value_counts()
@@ -187,13 +196,18 @@ def update_usage_pie_chart(dashboard_data):
 def update_image_prompt_fidelity(dashboard_data, mode):
     if dashboard_data is None or not dashboard_data.get("data_loaded"):
         raise PreventUpdate
-    with Database() as db:
-        df = db.fetch_all_images()
+    # with Database(dataset_path) as db:
+    #     df = db.fetch_all_images()
+    with Database(dataset_path) as db:
+        df_images = db.fetch_all_images()
+        df_prompts = db.fetch_all_prompts()
+        df = df_images.merge(df_prompts, left_on="prompt_id", right_on="id", suffixes=("_image", "_prompt"))
+
     df = filter_by_mode(df, mode)
 
     scores = []
     for _, row in df.iterrows():
-        score = calculate_clip_score(row['image_path'], row['prompt'])
+        score = calculate_clip_score(row['path'], row['prompt'])
         if score is not None:
             scores.append(score)
 
@@ -213,18 +227,20 @@ def update_prompt_novelty(dashboard_data, mode):
     if dashboard_data is None or not dashboard_data.get("data_loaded"):
         raise PreventUpdate
     
-    with Database() as db:
-        df = db.fetch_all_images()
+    with Database(dataset_path) as db:
+        df_images = db.fetch_all_images()
+        df_prompts = db.fetch_all_prompts()
+        df = df_images.merge(df_prompts, left_on="prompt_id", right_on="id", suffixes=("_image", "_prompt"))
     df = filter_by_mode(df, mode)
 
-    if df.empty or 'prompt' not in df.columns or 'prompt_number' not in df.columns:
+    if df.empty or 'prompt' not in df.columns or 'depth' not in df.columns:
         raise PreventUpdate
 
     scores = []
     for _, row in df.iterrows():
-        if row['prompt_number'] <= 1:
+        if row['depth'] <= 1:
             continue # Skip the first prompt — no previous to compare
-        prev = df[(df['user_id'] == row['user_id']) & (df['prompt_number'] == row['prompt_number'] - 1)]
+        prev = df[(df['user_id'] == row['user_id']) & (df['depth'] == row['prompt_number'] - 1)]
         if prev.empty:
             continue
         try:
@@ -253,7 +269,7 @@ def update_prompt_novelty(dashboard_data, mode):
 def update_image_novelty(dashboard_data, mode):
     if dashboard_data is None or not dashboard_data.get("data_loaded"):
         raise PreventUpdate
-    with Database() as db:
+    with Database(dataset_path) as db:
         df = db.fetch_all_images()
     df = filter_by_mode(df, mode)
 
@@ -305,7 +321,7 @@ def update_image_quality(dashboard_data, mode):
     if dashboard_data is None or not dashboard_data.get("data_loaded"):
         raise PreventUpdate
 
-    with Database() as db:
+    with Database(dataset_path) as db:
         df = db.fetch_all_images()
     df = filter_by_mode(df, mode)
 
