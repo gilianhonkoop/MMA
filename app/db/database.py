@@ -155,22 +155,28 @@ class Database:
             return self.fetch_dataframe(query)
         return self.execute_query(query)
     
-    def insert_image(self, prompt_id: int, user_id: int, chat_id: int, prompt_guidance: float, 
-                    image_guidance: float, path: str):
+    def insert_image(self, id: str, user_id: int, chat_id: int, prompt_guidance: float, 
+                    image_guidance: float, path: str, input_prompt_id: str, output_prompt_id: str,):
         """
         Insert an image record into the database.
         
         Args:
-            prompt_id (int): Prompt ID
+            id (str): Image ID
             user_id (int): User ID
             chat_id (int): Chat ID
             prompt_guidance (float): Prompt guidance value
             image_guidance (float): Image guidance value
             path (str): Path to the image file
+            input_prompt_id (str): ID of the input prompt
+            output_prompt_id (str): ID of the output prompt
         """
         # Validate arguments
-        if not isinstance(prompt_id, int):
-            raise ValueError("prompt_id must be an integer")
+        if not isinstance(id, str):
+            raise ValueError("id must be a string")
+        if not isinstance(input_prompt_id, str):
+            raise ValueError("input_prompt_id must be an integer")
+        if not isinstance(output_prompt_id, str):
+            raise ValueError("output_prompt_id must be an integer")
         if not isinstance(user_id, int):
             raise ValueError("user_id must be an integer")
         if not isinstance(chat_id, int):
@@ -183,10 +189,10 @@ class Database:
             raise ValueError("path must be a string")
         
         query = """
-        INSERT INTO images (prompt_id, user_id, chat_id, prompt_guidance, image_guidance, path)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO images (id, input_prompt_id, output_prompt_id, user_id, chat_id, prompt_guidance, image_guidance, path)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """
-        params = (prompt_id, user_id, chat_id, prompt_guidance, image_guidance, path)
+        params = (id, input_prompt_id, output_prompt_id, user_id, chat_id, prompt_guidance, image_guidance, path)
         try:
             self.execute_query(query, params)
         except sqlite3.IntegrityError as e:
@@ -264,13 +270,14 @@ class Database:
         except sqlite3.Error as e:
             print(f"Database error: {e}")
 
-    def insert_prompt(self, chat_id, user_id, prompt, depth, used_suggestion=False, 
+    def insert_prompt(self, id, chat_id, user_id, prompt, depth, used_suggestion=False, 
                      modified_suggestion=False, suggestion_used=None, is_enhanced=False, 
                      enhanced_prompt=None, image_in_id=None, images_out=None):
         """
         Insert a prompt record into the database.
         
         Args:
+            id (str): prompt ID
             chat_id (int): Chat ID
             user_id (int): User ID
             prompt (str): User prompt text
@@ -283,6 +290,8 @@ class Database:
             image_in_id (int): ID of the input image (default: None)
             images_out (str): Comma-separated list of output image IDs (default: None)
         """
+        if not isinstance(id, str):
+            raise ValueError("id must be a string")
         if not isinstance(chat_id, int):
             raise ValueError("chat_id must be an integer")
         if not isinstance(user_id, int):
@@ -307,11 +316,11 @@ class Database:
             raise ValueError("images_out must be a string or None")
 
         query = """
-        INSERT INTO prompts (chat_id, user_id, prompt, depth, used_suggestion, modified_suggestion,
+        INSERT INTO prompts (id, chat_id, user_id, prompt, depth, used_suggestion, modified_suggestion,
                            suggestion_used, is_enhanced, enhanced_prompt, image_in_id, images_out)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
-        params = (chat_id, user_id, prompt, depth, used_suggestion, modified_suggestion,
+        params = (id, chat_id, user_id, prompt, depth, used_suggestion, modified_suggestion,
                  suggestion_used, is_enhanced, enhanced_prompt, image_in_id, images_out)
         try:
             self.execute_query(query, params)

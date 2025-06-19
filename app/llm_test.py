@@ -7,14 +7,23 @@ import json
 import re
 from PIL import Image
 
+def get_absolute_path(relative_path):
+    """
+    Converts a relative path wrt to the file to an absolute path.
+    """
+    dirname = os.path.dirname(__file__)
+    absolute_path = os.path.join(dirname, relative_path)
+
+    return absolute_path
+
 class Prompt():
-    def __init__(self, initial_prompt, itial_img, model="google/gemma-3-27b-it"):
+    def __init__(self, initial_prompt, itial_img, model="google/gemma-3-4b-it"):
         self.current_prompt = initial_prompt
         self.current_prompt_img = itial_img
         self.suggestions = []
         self.updates = [initial_prompt] # the updates made to the original prompt through either a suggestion or manual input
 
-        torch.set_float32_matmul_precision('high')
+        # torch.set_float32_matmul_precision('high')
         
         processor = AutoProcessor.from_pretrained(model, use_fast=True)
 
@@ -79,7 +88,8 @@ if __name__ == "__main__":
     dotenv.load_dotenv()
     login(os.environ.get("HF_TOKEN"))    
 
-    image = Image.open("duck.jpg").convert("RGB")
-    prompt = Prompt("Turn this into a rubber duck", image, model="google/gemma-3-12b-it")
+    image_path = get_absolute_path('../images/duck.jpg')
+    image = Image.open(image_path).convert("RGB")
+    prompt = Prompt("Turn this into a rubber duck", image, model="google/gemma-3-4b-it")
     suggestions = prompt.make_suggestions(3)
     print(suggestions)

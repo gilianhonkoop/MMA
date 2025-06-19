@@ -1,10 +1,19 @@
 
 from dash import dcc, html, callback, Input, Output, State, ctx
+# Bootstrap components for styling
 import dash_bootstrap_components as dbc
+# Cytoscape integration to draw graph/tree visualizations
 import dash_cytoscape as cyto
+# Stops callbacks from updating outputs under certain conditions.
 from dash.exceptions import PreventUpdate
 
+
+# Tree Visualization
 def create_tree_visualization():
+    """Creates a graph layout using dagre (a directed acyclic graph layout). 
+    It's styled to use images as node backgrounds and includes styles for: 
+    Selected nodes, Disabled nodes, Selectable nodes
+    """
     return cyto.Cytoscape(
         id='tree-graph',
         layout={'name': 'dagre', 'rankDir': 'LR', 'rankSep': 150, 'nodeSep': 100},
@@ -50,7 +59,11 @@ def create_tree_visualization():
         ]
     )
 
+# Image Display Area
 def create_image_display(id_prefix, title):
+    """ Creates an area to show an image with a title. 
+    Initially hidden (display: none), likely toggled via callback.
+    """
     return html.Div([
         html.H5(title),
         html.Div(
@@ -60,7 +73,11 @@ def create_image_display(id_prefix, title):
         ),
     ])
 
+# Suggestion Button
 def create_suggestion_button(idx):
+    """ Creates hidden suggestion buttons, which will appear when the user 
+    selects a tree node.
+    """
     return dbc.Button(
         id=f'suggestion-button-{idx}',
         children="Suggestion",
@@ -69,7 +86,16 @@ def create_suggestion_button(idx):
         style={'display': 'none'}
     )
 
+# Layout Builder
 def create_user_layout():
+    """Builds the main page layout:
+    Header and image uploader.
+    Hidden tree visualization container.
+    Hidden suggestion button area.
+    Input field for prompts.
+    Submit button (disabled until conditions are met).
+    Several dcc.Store components to hold session state.
+    """
     return dbc.Container([
         html.H1("Image Generator Interface", className="my-3"),
         
@@ -146,7 +172,12 @@ def create_user_layout():
     [Input('image-upload', 'contents'),
      Input('prompt-input', 'value')]
 )
+
+# Enable Submit Button
 def enable_submit_button(image_contents, prompt):
+    """ Enables the "Generate Images" button only if: 
+    An image is uploaded, A prompt is entered
+    """
     if image_contents is None or not prompt:
         return True
     return False
@@ -161,7 +192,16 @@ def enable_submit_button(image_contents, prompt):
     [Input('image-upload', 'contents')],
     prevent_initial_call=True
 )
+
+# Image Upload Handler
 def process_uploaded_image(contents):
+    """Triggered when an image is uploaded. 
+    It's currently a placeholder (returns all None) but expected to:
+    Process the uploaded image, 
+    Show the tree graph, 
+    Store image data, 
+    Build initial tree nodes and edges
+    """
     if contents is None:
         raise PreventUpdate
     
@@ -181,7 +221,15 @@ def process_uploaded_image(contents):
      State('selected-image-data', 'data')],
     prevent_initial_call=True
 )
+
+# Image Generation Callback
 def generate_images(n_clicks, image_src, prompt, use_ai, session_data, tree_data, selected_image_data):
+    """
+    Triggered on clicking "Generate Images". It uses:
+    Image source, Prompt, AI enhancement option, Current session and tree state
+    Also currently a placeholder (return Nones). In production, it would:
+    Generate images (maybe using AI), Update the tree with new nodes
+    """
     if n_clicks is None or image_src is None or not prompt:
         raise PreventUpdate
     
@@ -203,7 +251,13 @@ def generate_images(n_clicks, image_src, prompt, use_ai, session_data, tree_data
     [State('tree-data', 'data')],
     prevent_initial_call=True
 )
+
+# Tree Node Selection Callback
 def select_tree_node(node_data, tree_data):
+    """ Runs when a node in the tree is clicked:
+    Would update selected node data, Display related suggestions,
+    Possibly allow user to enhance/modify based on the selected image
+    """
     if node_data is None:
         raise PreventUpdate
 
@@ -219,7 +273,13 @@ def select_tree_node(node_data, tree_data):
      State('suggestion-button-3', 'children')],
     prevent_initial_call=True
 )
+
+# Use Suggestion Button
 def use_suggestion(click1, click2, click3, suggestion1, suggestion2, suggestion3):
+    """ When one of the suggestion buttons is clicked:
+    Detects which was clicked via ctx.triggered_id, 
+    Fills the input prompt with that suggestion
+    """
     triggered_id = ctx.triggered_id
     
     if triggered_id is None:
