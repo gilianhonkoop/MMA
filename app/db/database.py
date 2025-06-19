@@ -63,102 +63,121 @@ class Database:
         df = pd.read_sql_query(query, self.connection, params=params)
         return df
 
+    # Image method: Handles retrieving image metadata.
     def fetch_image_by_id(self, id, pandas=default_pandas):
         query = "SELECT * FROM images WHERE id = ?"
         if pandas:
             return self.fetch_dataframe(query, (id,))
         return self.execute_query(query, (id,))
     
+    # Image method: Handles retrieving image metadata.
     def fetch_image_by_path(self, path, pandas=default_pandas):
         query = "SELECT * FROM images WHERE path = ?"
         if pandas:
             return self.fetch_dataframe(query, (path,))
         return self.execute_query(query, (path,))
 
+    # Image method: Handles retrieving image metadata.
     def fetch_all_images(self, pandas=default_pandas):
         query = "SELECT * FROM images"
         if pandas:
             return self.fetch_dataframe(query)
         return self.execute_query(query)
     
+    # Image method: Handles retrieving image metadata.
     def fetch_images_by_user(self, user_id, pandas=default_pandas):
         query = "SELECT * FROM images WHERE user_id = ?"
         if pandas:
             return self.fetch_dataframe(query, (user_id,))
         return self.execute_query(query, (user_id,))
-        
+
+    # Image method: Handles retrieving image metadata.    
     def fetch_images_by_chat(self, chat_id, pandas=default_pandas):
         query = "SELECT * FROM images WHERE chat_id = ?"
         if pandas:
             return self.fetch_dataframe(query, (chat_id,))
         return self.execute_query(query, (chat_id,))
-        
+
+    # Image method: Handles retrieving image metadata.    
     def fetch_images_by_prompt(self, prompt_id, pandas=default_pandas):
         query = "SELECT * FROM images WHERE prompt_id = ?"
         if pandas:
             return self.fetch_dataframe(query, (prompt_id,))
         return self.execute_query(query, (prompt_id,))
     
+    # User method: Supports user lookup.
     def fetch_user_by_id(self, id, pandas=default_pandas):
         query = "SELECT * FROM users WHERE id = ?"
         if pandas:
             return self.fetch_dataframe(query, (id,))
         return self.execute_query(query, (id,))
-    
+   
+    # User method: Supports user lookup.
     def fetch_user_by_username(self, username, pandas=default_pandas):
         query = "SELECT * FROM users WHERE username = ?"
         if pandas:
             return self.fetch_dataframe(query, (username,))
         return self.execute_query(query, (username,))
     
+    # User method: Supports user lookup.
     def fetch_all_users(self, pandas=default_pandas):
         query = "SELECT * FROM users"
         if pandas:
             return self.fetch_dataframe(query)
         return self.execute_query(query)
-        
+
+    # Chat and prompt methods: Allow storing and querying hierarchical data: user → chat → prompt.
+    # Chat method: handles retrieving chat    
     def fetch_chat_by_id(self, id, pandas=default_pandas):
         query = "SELECT * FROM chats WHERE id = ?"
         if pandas:
             return self.fetch_dataframe(query, (id,))
         return self.execute_query(query, (id,))
-        
+
+    # Chat method: handles retrieving chat    
     def fetch_chats_by_user(self, user_id, pandas=default_pandas):
         query = "SELECT * FROM chats WHERE user_id = ?"
         if pandas:
             return self.fetch_dataframe(query, (user_id,))
         return self.execute_query(query, (user_id,))
-        
+
+    # Chat method: handles retrieving chats    
     def fetch_all_chats(self, pandas=default_pandas):
         query = "SELECT * FROM chats"
         if pandas:
             return self.fetch_dataframe(query)
         return self.execute_query(query)
-        
+
+    # Prompt method: handles retrieving prompt        
     def fetch_prompt_by_id(self, id, pandas=default_pandas):
         query = "SELECT * FROM prompts WHERE id = ?"
         if pandas:
             return self.fetch_dataframe(query, (id,))
         return self.execute_query(query, (id,))
-        
+
+    # Prompt method: handles retrieving prompt            
     def fetch_prompts_by_chat(self, chat_id, pandas=default_pandas):
         query = "SELECT * FROM prompts WHERE chat_id = ?"
         if pandas:
             return self.fetch_dataframe(query, (chat_id,))
         return self.execute_query(query, (chat_id,))
-        
+
+    # Prompt method: handles retrieving prompt            
     def fetch_prompts_by_user(self, user_id, pandas=default_pandas):
         query = "SELECT * FROM prompts WHERE user_id = ?"
         if pandas:
             return self.fetch_dataframe(query, (user_id,))
         return self.execute_query(query, (user_id,))
-        
+
+    # Prompt method: handles retrieving prompt            
     def fetch_all_prompts(self, pandas=default_pandas):
         query = "SELECT * FROM prompts"
         if pandas:
             return self.fetch_dataframe(query)
         return self.execute_query(query)
     
+    # Image method: Handles adding image metadata.
+    # input_prompt_id and output_prompt_id connect images to generation prompts.
     def insert_image(self, id: str, user_id: int, chat_id: int, prompt_guidance: float, 
                     image_guidance: float, path: str, input_prompt_id: str, output_prompt_id: str,):
         """
@@ -177,10 +196,10 @@ class Database:
         # Validate arguments
         if not isinstance(id, str):
             raise ValueError("id must be a string")
-        # if not isinstance(input_prompt_id, str):
-        #     raise ValueError("input_prompt_id must be an integer")
-        # if not isinstance(output_prompt_id, str):
-        #     raise ValueError("output_prompt_id must be an integer")
+        if not isinstance(input_prompt_id, str):
+            raise ValueError("input_prompt_id must be an string")
+        if not isinstance(output_prompt_id, str):
+            raise ValueError("output_prompt_id must be an string")
         if not isinstance(user_id, int):
             raise ValueError("user_id must be an integer")
         if not isinstance(chat_id, int):
@@ -204,6 +223,7 @@ class Database:
         except sqlite3.Error as e:
             print(f"Database error: {e}")
 
+    # User method: Supports user creation
     def insert_user(self, username, password):
         """
         Insert an user record into the database.
@@ -229,6 +249,7 @@ class Database:
         except sqlite3.Error as e:
             print(f"Database error: {e}")
 
+    # User method: Supports user creation
     def insert_user_if_not_exists(self, username, password="default_password"):
         """
         Inserts a user into the database if they do not already exist.
@@ -249,6 +270,7 @@ class Database:
         except sqlite3.Error as e:
             print(f"Database error: {e}")
 
+    # Chat method: Supports adding chat data
     def insert_chat(self, title, user_id):
         """
         Insert a chat record into the database.
@@ -335,6 +357,9 @@ class Database:
         except sqlite3.Error as e:
             print(f"Database error: {e}")
 
+    # Reset methods
+    # Drops and recreates all tables using the SQL from create.py. 
+    # Used when reinitializing your database.
     def reset_images(self):
         """
         Resets the images table by dropping it if it exists and recreating it.
@@ -372,6 +397,7 @@ class Database:
         self.reset_prompts()
         self.reset_images()
 
+    # Context manager support
     def __enter__(self):
         """
         Allows the Database class to be used as a context manager.
