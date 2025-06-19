@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS chats (
 create_images_table = """
 CREATE TABLE IF NOT EXISTS images (
     id TEXT PRIMARY KEY,
-    prompt_id INTEGER NOT NULL,
+    input_prompt_id INTEGER NOT NULL,
+    output_prompt_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
     chat_id INTEGER NOT NULL,
     prompt_guidance FLOAT NOT NULL,
