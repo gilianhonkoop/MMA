@@ -71,7 +71,7 @@ class Prompt():
         image_guidance_scales = self.__get_random_values(n, 1, 5)
 
         for (pg, ig) in zip(guidance_scales, image_guidance_scales):
-            image = image_transformer.transform(self.get_image(), prompt, guidance_scale=pg, image_guidance_scale=ig, save_path = None)
+            image = image_transformer.transform(self.get_image(), prompt, guidance_scale=pg, image_guidance_scale=ig)
             pimage = PromptImage(image, pg, ig, input_prompt=None, output_prompt=self.id, save=save)
             output_images.append(pimage)
 

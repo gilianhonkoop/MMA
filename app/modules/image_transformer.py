@@ -15,7 +15,7 @@ class ImageTransformer:
         self.pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(self.pipe.scheduler.config)
         self.pipe.enable_model_cpu_offload()
 
-    def transform(self, init_image, prompt, guidance_scale=7.5, image_guidance_scale=1.5, custom_size=False, image_size=(1024, 1024)):
+    def transform(self, init_image, prompt, guidance_scale=None, image_guidance_scale=None, custom_size=False, image_size=(1024, 1024)):
         """
         Transform an image based on a prompt using the InstructPix2Pix model.
 
@@ -35,14 +35,21 @@ class ImageTransformer:
             raise ValueError("init_image must be a PIL.Image object")
         if not isinstance(prompt, str):
             raise ValueError("prompt must be a string")
-        if not isinstance(guidance_scale, (int, float)) or guidance_scale <= 1:
-            raise ValueError("guidance_scale must be a number larger or equal to 1")
-        if not isinstance(image_guidance_scale, (int, float)) or image_guidance_scale <= 1:
-            raise ValueError("image_guidance_scale must be a number larger or equal to 1")
+        # if not isinstance(guidance_scale, (int, float)) or guidance_scale <= 1:
+        #     raise ValueError("guidance_scale must be a number larger or equal to 1")
+        # if not isinstance(image_guidance_scale, (int, float)) or image_guidance_scale <= 1:
+        #     raise ValueError("image_guidance_scale must be a number larger or equal to 1")
         if not isinstance(custom_size, bool):
             raise ValueError("custom_size must be a boolean")
         if not isinstance(image_size, tuple) or len(image_size) != 2:
             raise ValueError("image_size must be a tuple of two integers (width, height)")
+
+
+        if guidance_scale is None:
+            guidance_scale = torch.randint(1, 15, (1,)).item()
+        if image_guidance_scale is None:
+            image_guidance_scale = torch.randint(1, 5, (1,)).item()
+
 
         # Preferred size for the image as per Stable Diffusion docs
         default_size = 1024

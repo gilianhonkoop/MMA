@@ -7,6 +7,12 @@ from layouts.user_page import create_user_layout
 from layouts.admin_page import create_admin_layout
 from layouts.login_page import create_login_layout
 
+from modules.model_instances import init_models
+
+print("Initializing AI models...")
+init_models()
+print("AI models initialized successfully!")
+
 app = dash.Dash(__name__, 
                 external_stylesheets=[dbc.themes.BOOTSTRAP],
                 suppress_callback_exceptions=True)

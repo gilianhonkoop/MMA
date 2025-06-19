@@ -1,6 +1,10 @@
 import sqlite3
 import os
+import json
 import pandas as pd
+from modules.prompt import Prompt
+from modules.prompt_image import PromptImage
+from modules.chat import Chat
 from .create import create_images_table
 from .create import create_users_table
 from .create import create_chats_table
@@ -173,10 +177,10 @@ class Database:
         # Validate arguments
         if not isinstance(id, str):
             raise ValueError("id must be a string")
-        if not isinstance(input_prompt_id, str):
-            raise ValueError("input_prompt_id must be an integer")
-        if not isinstance(output_prompt_id, str):
-            raise ValueError("output_prompt_id must be an integer")
+        # if not isinstance(input_prompt_id, str):
+        #     raise ValueError("input_prompt_id must be an integer")
+        # if not isinstance(output_prompt_id, str):
+        #     raise ValueError("output_prompt_id must be an integer")
         if not isinstance(user_id, int):
             raise ValueError("user_id must be an integer")
         if not isinstance(chat_id, int):
@@ -270,6 +274,8 @@ class Database:
         except sqlite3.Error as e:
             print(f"Database error: {e}")
 
+        return self.cursor.lastrowid
+
     def insert_prompt(self, id, chat_id, user_id, prompt, depth, used_suggestion=False, 
                      modified_suggestion=False, suggestion_used=None, is_enhanced=False, 
                      enhanced_prompt=None, image_in_id=None, images_out=None):
@@ -310,10 +316,10 @@ class Database:
             raise ValueError("is_enhanced must be a boolean")
         if enhanced_prompt is not None and not isinstance(enhanced_prompt, str):
             raise ValueError("enhanced_prompt must be a string or None")
-        if image_in_id is not None and not isinstance(image_in_id, int):
-            raise ValueError("image_in_id must be an integer or None")
-        if images_out is not None and not isinstance(images_out, str):
-            raise ValueError("images_out must be a string or None")
+        # if image_in_id is not None and not isinstance(image_in_id, int):
+        #     raise ValueError("image_in_id must be an integer or None")
+        # if images_out is not None and not isinstance(images_out, str):
+        #     raise ValueError("images_out must be a string or None")
 
         query = """
         INSERT INTO prompts (id, chat_id, user_id, prompt, depth, used_suggestion, modified_suggestion,
@@ -379,3 +385,132 @@ class Database:
         Ensures the database connection is closed when exiting the context.
         """
         self.close()
+
+    def save_image(self, prompt_image: PromptImage, session_id: str, user_id: int = 1):
+        if not isinstance(prompt_image, PromptImage):
+            raise TypeError("Expected prompt_image to be an instance of PromptImage")
+        
+        self.connect()
+        
+        try:
+            self.insert_image(
+                id=prompt_image.id,
+                user_id=user_id,
+                chat_id=session_id,
+                prompt_guidance=prompt_image.prompt_guidance if prompt_image.prompt_guidance else 0.0,
+                image_guidance=prompt_image.image_guidance if prompt_image.image_guidance else 0.0,
+                path=prompt_image.path,
+                input_prompt_id=prompt_image.input_prompt,
+                output_prompt_id=prompt_image.output_prompt
+            )
+            return True
+        except Exception as e:
+            print(f"Error saving image to database: {e}")
+            return False
+        finally:
+            self.close()
+
+    def save_prompt(self, prompt: Prompt, chat_id: str, user_id: int = 1):
+        if not isinstance(prompt, Prompt):
+            raise TypeError("Expected prompt to be an instance of Prompt")
+        
+        self.connect()
+        
+        try:
+            images_out_json = json.dumps([img.id for img in prompt.images_out]) if prompt.images_out else None
+            
+            input_image_id = prompt.input_image.id if prompt.input_image else None
+            
+            self.insert_prompt(
+                id=prompt.id,
+                chat_id=chat_id,
+                user_id=user_id,
+                prompt=prompt.prompt,
+                depth=prompt.depth,
+                used_suggestion=prompt.used_suggestion,
+                modified_suggestion=prompt.modified_suggestion,
+                suggestion_used=prompt.suggestion_used,
+                is_enhanced=prompt.is_enhanced,
+                enhanced_prompt=prompt.enhanced_prompt,
+                image_in_id=input_image_id,
+                images_out=images_out_json
+            )
+            return True
+        except Exception as e:
+            print(f"Error saving prompt to database: {e}")
+            return False
+        finally:
+            self.close()
+
+    def save_chat(self, chat: Chat):
+        if not isinstance(chat, Chat):
+            raise TypeError("Expected chat to be an instance of Chat")
+        
+        self.connect()
+        
+        try:
+            chat_id = self.insert_chat(chat.title, chat.user_id)
+            
+            for prompt in chat.prompts:
+                self.save_prompt(prompt, chat_id, chat.user_id)
+            
+            return chat_id
+        except Exception as e:
+            print(f"Error saving chat to database: {e}")
+            return None
+        finally:
+            self.close()
+    
+    def get_image_by_id(self, image_id):
+        if image_id is None:
+            return None
+        
+        self.connect()
+        
+        try:
+            result = self.fetch_image_by_id(image_id, pandas=False)
+            if not result or not result[0]:
+                return None
+            
+            record = result[0]
+            id_val, input_prompt_id, output_prompt_id, user_id, chat_id, prompt_guidance, image_guidance, path, *_ = record
+            
+            if os.path.exists(path):
+                from PIL import Image
+                image = Image.open(path)
+                
+                from modules.prompt_image import PromptImage
+                prompt_image = PromptImage(image, prompt_guidance, image_guidance, 
+                                        input_prompt=input_prompt_id, 
+                                        output_prompt=output_prompt_id,
+                                        save=False)
+                
+                prompt_image.id = id_val
+                
+                prompt_image.path = path
+                
+                return prompt_image
+            else:
+                print(f"Image file not found at path: {path}")
+                return None
+        except Exception as e:
+            print(f"Error getting image from database: {e}")
+            return None
+        finally:
+            self.close()
+    
+    def set_image_selected(self, image_id, selected=True):
+        if image_id is None:
+            return False
+        
+        self.connect()
+        
+        try:
+            query = "UPDATE images SET selected = ? WHERE id = ?"
+            self.execute_query(query, (1 if selected else 0, image_id))
+            return True
+        except Exception as e:
+            print(f"Error setting image selected status: {e}")
+            return False
+        finally:
+            self.close()

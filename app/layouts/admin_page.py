@@ -16,7 +16,7 @@ import numpy as np
 from brisque import BRISQUE
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../db')))
-from database import Database
+from db.database import Database
 
 # Logging setup
 import logging

@@ -1,4 +1,3 @@
-
 from dash import dcc, html, callback, Input, Output, State, ctx
 # Bootstrap components for styling
 import dash_bootstrap_components as dbc
@@ -6,6 +5,19 @@ import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 # Stops callbacks from updating outputs under certain conditions.
 from dash.exceptions import PreventUpdate
+import uuid
+import base64
+import io
+from PIL import Image
+import os
+import sys
+from datetime import datetime
+import json
+from modules.prompt import Prompt
+from modules.prompt_image import PromptImage
+from modules.chat import Chat
+from db.database import Database
+from modules.model_instances import get_vlm_instance, get_image_transformer_instance
 
 
 # Tree Visualization
@@ -190,13 +202,13 @@ def enable_submit_button(image_contents, prompt):
      Output('tree-data', 'data', allow_duplicate=True),
      Output('session-data', 'data', allow_duplicate=True)],
     [Input('image-upload', 'contents')],
+    [State('app-user-info', 'data')],
     prevent_initial_call=True
 )
 
 # Image Upload Handler
-def process_uploaded_image(contents):
+def process_uploaded_image(contents, user_info):
     """Triggered when an image is uploaded. 
-    It's currently a placeholder (returns all None) but expected to:
     Process the uploaded image, 
     Show the tree graph, 
     Store image data, 
@@ -205,7 +217,65 @@ def process_uploaded_image(contents):
     if contents is None:
         raise PreventUpdate
     
-    return  None, None, None, None, None, None
+    # Parse the Base64 string
+    content_type, content_string = contents.split(',')
+    decoded = base64.b64decode(content_string)
+    
+    # Convert to PIL Image
+    img = Image.open(io.BytesIO(decoded))
+    
+    # Get user ID from session or default to 1
+    user_id = user_info.get('id', 1) if user_info else 1
+    
+    # Initialize a database connection
+    db = Database()
+    db.connect()
+    
+    # Create a unique session ID for the chat
+    chat_title = f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    
+    # Create a Chat object
+    chat = Chat(user_id=user_id, title=chat_title)
+    
+    # Save the chat to the database
+    db_chat_id = db.insert_chat(chat.title, user_id)
+    
+    # Create initial PromptImage (input)
+    prompt_image = PromptImage(img, None, None, input_prompt=None, output_prompt=None, save=True)
+    
+    # Save image to database
+    db.save_image(prompt_image, db_chat_id, user_id)
+    
+    # Store session data
+    session_data = {
+        'session_id': db_chat_id,
+        'image_count': 1,
+        'root_image_id': prompt_image.id,
+        'chat_id': db_chat_id
+    }
+    
+    tree_data = {
+        'nodes': [
+            {'id': 'root', 'label': 'Original Image', 'image': contents, 'level': 0, 'image_id': prompt_image.id}
+        ],
+        'edges': [],
+        'current_node': 'root',
+        'max_level': 0,
+        'selected_node': 'root'
+    }
+    
+    cy_elements = [{'data': tree_data['nodes'][0], 'selected': True}]
+
+    db.close()
+    
+    return (
+        {'display': 'block'}, 
+        {'display': 'none'},
+        contents,
+        cy_elements,
+        tree_data,
+        session_data
+    )
 
 @callback(
     [Output('tree-graph', 'elements'),
@@ -218,22 +288,130 @@ def process_uploaded_image(contents):
      State('ai-enhancement-checkbox', 'value'),
      State('session-data', 'data'),
      State('tree-data', 'data'),
-     State('selected-image-data', 'data')],
+     State('selected-image-data', 'data'),
+     State('app-user-info', 'data')],
     prevent_initial_call=True
 )
 
 # Image Generation Callback
-def generate_images(n_clicks, image_src, prompt, use_ai, session_data, tree_data, selected_image_data):
+def generate_images(n_clicks, image_src, prompt_text, use_ai, session_data, tree_data, selected_image_data, user_info):
     """
     Triggered on clicking "Generate Images". It uses:
     Image source, Prompt, AI enhancement option, Current session and tree state
-    Also currently a placeholder (return Nones). In production, it would:
-    Generate images (maybe using AI), Update the tree with new nodes
+    Generates images using ImageTransformer and adds them to the tree
     """
-    if n_clicks is None or image_src is None or not prompt:
+    if n_clicks is None or image_src is None or not prompt_text:
         raise PreventUpdate
     
-    return None, None, None, None
+    user_id = user_info.get('id', 1) if user_info else 1
+    chat_id = session_data.get('chat_id')
+    
+    db = Database()
+    db.connect()
+    
+    parent_id = tree_data.get('current_node') if tree_data and tree_data.get('current_node') else 'root'
+    
+    parent_level = 0
+    parent_image_id = None
+    for node in tree_data['nodes']:
+        if node['id'] == parent_id:
+            parent_level = node.get('level', 0)
+            parent_image_id = node.get('image_id')
+            break
+    
+    parent_image_obj = db.get_image_by_id(parent_image_id)
+    
+    if parent_image_obj is None:
+        if parent_id == 'root':
+            content_type, content_string = image_src.split(',')
+            decoded = base64.b64decode(content_string)
+            parent_image = Image.open(io.BytesIO(decoded))
+            
+            parent_image_obj = PromptImage(parent_image, None, None)
+            
+            db.save_image(parent_image_obj, chat_id, user_id)
+        else:
+            raise PreventUpdate
+    
+    suggestion_used = None
+    modified_suggestion = False
+    
+    if selected_image_data and 'used_suggestion' in selected_image_data:
+        suggestion_used = selected_image_data['used_suggestion']
+        modified_suggestion = selected_image_data.get('modified', False)
+    
+    prompt_obj = Prompt(
+        prompt=prompt_text, 
+        depth=parent_level + 1, 
+        input_image=parent_image_obj,
+        suggestion_used=suggestion_used,
+        modified_suggestion=modified_suggestion
+    )
+    
+    if use_ai:
+        vlm = get_vlm_instance()
+        prompt_obj.enhance_prompt(vlm)
+    
+    db.save_prompt(prompt_obj, chat_id, user_id)
+    
+    image_transformer = get_image_transformer_instance()
+    
+    output_images = prompt_obj.get_new_images(image_transformer, n=5, save=True)
+    
+    for img in output_images:
+        img.set_input_prompt(prompt_obj.id)
+        db.save_image(img, chat_id, user_id)
+    
+    new_level = parent_level + 1
+    tree_data['max_level'] = max(tree_data.get('max_level', 0), new_level)
+    
+    if parent_id == 'root' and len(tree_data.get('edges', [])) == 0:
+        for i, node in enumerate(tree_data['nodes']):
+            if node['id'] == 'root':
+                tree_data['nodes'][i]['label'] = prompt_text[:15] + '...' if len(prompt_text) > 15 else prompt_text
+                break
+    
+    for i, img in enumerate(output_images):
+        buffered = io.BytesIO()
+        img.image.save(buffered, format="PNG")
+        img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+        img_src = f"data:image/png;base64,{img_str}"
+        
+        node_id = f"node_{session_data['image_count'] + i}"
+        
+        tree_data['nodes'].append({
+            'id': node_id,
+            'label': prompt_text[:15] + '...' if len(prompt_text) > 15 else prompt_text,
+            'image': img_src,
+            'level': new_level,
+            'image_id': img.id
+        })
+        
+        tree_data['edges'].append({
+            'id': f"edge_{parent_id}_{node_id}",
+            'source': parent_id,
+            'target': node_id
+        })
+    
+    session_data['image_count'] += len(output_images)
+    
+    cy_elements = []
+    for node in tree_data['nodes']:
+        element = {'data': node.copy()}
+        if tree_data.get('selected_node') and node['id'] == tree_data.get('selected_node'):
+            element['selected'] = True
+        cy_elements.append(element)
+    
+    cy_elements.extend([{'data': edge} for edge in tree_data['edges']])
+    
+    db.close()
+
+    return (
+        cy_elements,
+        session_data, 
+        tree_data,
+        ""
+    )
 
 @callback(
     [Output('selected-image-data', 'data'),
@@ -255,41 +433,169 @@ def generate_images(n_clicks, image_src, prompt, use_ai, session_data, tree_data
 # Tree Node Selection Callback
 def select_tree_node(node_data, tree_data):
     """ Runs when a node in the tree is clicked:
-    Would update selected node data, Display related suggestions,
-    Possibly allow user to enhance/modify based on the selected image
+    Updates selected node data, Display related suggestions,
+    Allows user to enhance/modify based on the selected image
     """
     if node_data is None:
         raise PreventUpdate
+    
+    db = Database()
+    db.connect()
+    
+    selected_node_id = node_data['id']
+    selected_image_id = node_data.get('image_id')
+    
+    node_levels = {node['id']: node.get('level', 0) for node in tree_data['nodes']}
+    selected_node_level = node_levels.get(selected_node_id, 0)
+    
+    max_level = tree_data.get('max_level', 0)
+    
+    if selected_node_level != max_level:
+        raise PreventUpdate
+    
+    tree_data['current_node'] = selected_node_id
+    tree_data['selected_node'] = selected_node_id
+    
+    cy_elements = []
+    
+    for node in tree_data['nodes']:
+        is_selected = (node['id'] == selected_node_id)
+        element = {
+            'data': node.copy(),
+            'classes': '' if is_selected else 'disabled',
+            'selected': is_selected
+        }
+        cy_elements.append(element)
+    
+    cy_elements.extend([{'data': edge} for edge in tree_data['edges']])
 
-    return None, None, None, None, None, None, None, None, None, None, None
+    if selected_image_id:
+        db.set_image_selected(selected_image_id, True)
+    
+    if selected_node_id == 'root':
+        db.close()
+        return (
+            {"selected_node_id": selected_node_id, "image_id": selected_image_id},
+            {'display': 'none'},
+            "",
+            "",
+            "",
+            {'display': 'none'},
+            {'display': 'none'},
+            {'display': 'none'},
+            False,
+            tree_data,
+            cy_elements
+        )
+    else:
+        prompt_image = db.get_image_by_id(selected_image_id)
+        
+        default_suggestions = ["Enhance colors and contrast", "Add artistic effect", "Make more dramatic"]
+        suggestions = default_suggestions.copy()
+        
+        if prompt_image:
+            try:
+                temp_prompt = Prompt("", 0, input_image=prompt_image)
+                
+                vlm = get_vlm_instance()
+                suggestions = vlm.make_suggestions(temp_prompt, n_suggestions=3)
+                
+                if len(suggestions) < 3:
+                    suggestions = default_suggestions.copy()
+            
+            except Exception as e:
+                print(f"Error generating suggestions: {e}")
+                suggestions = default_suggestions.copy()
+
+        db.close()
+        
+        while len(suggestions) < 3:
+            suggestions.append(default_suggestions[len(suggestions) % len(default_suggestions)])
+        
+        return (
+            {"selected_node_id": selected_node_id, "image_id": selected_image_id},
+            {'display': 'block'},
+            suggestions[0],
+            suggestions[1],
+            suggestions[2],
+            {'display': 'block'},
+            {'display': 'block'},
+            {'display': 'block'},
+            True,
+            tree_data,
+            cy_elements
+        )
 
 @callback(
-    Output('prompt-input', 'value'),
+    [Output('prompt-input', 'value'),
+     Output('selected-image-data', 'data', allow_duplicate=True)],
     [Input('suggestion-button-1', 'n_clicks'),
      Input('suggestion-button-2', 'n_clicks'),
      Input('suggestion-button-3', 'n_clicks')],
     [State('suggestion-button-1', 'children'),
      State('suggestion-button-2', 'children'),
-     State('suggestion-button-3', 'children')],
+     State('suggestion-button-3', 'children'),
+     State('selected-image-data', 'data')],
     prevent_initial_call=True
 )
 
 # Use Suggestion Button
-def use_suggestion(click1, click2, click3, suggestion1, suggestion2, suggestion3):
+def use_suggestion(click1, click2, click3, suggestion1, suggestion2, suggestion3, selected_image_data):
     """ When one of the suggestion buttons is clicked:
     Detects which was clicked via ctx.triggered_id, 
-    Fills the input prompt with that suggestion
+    Fills the input prompt with that suggestion,
+    Records which suggestion was used in the database
     """
     triggered_id = ctx.triggered_id
     
     if triggered_id is None:
         raise PreventUpdate
     
-    if triggered_id == 'suggestion-button-1':
-        return suggestion1
-    elif triggered_id == 'suggestion-button-2':
-        return suggestion2
-    elif triggered_id == 'suggestion-button-3':
-        return suggestion3
+    if selected_image_data is None:
+        selected_image_data = {}
+    
+    db = Database()
+    db.connect()
+    
+    try:
+        if triggered_id == 'suggestion-button-1':
+            selected_image_data['used_suggestion'] = suggestion1
+            selected_image_data['modified'] = False
+            return suggestion1, selected_image_data
+        elif triggered_id == 'suggestion-button-2':
+            selected_image_data['used_suggestion'] = suggestion2
+            selected_image_data['modified'] = False
+            return suggestion2, selected_image_data
+        elif triggered_id == 'suggestion-button-3':
+            selected_image_data['used_suggestion'] = suggestion3
+            selected_image_data['modified'] = False
+            return suggestion3, selected_image_data
+    finally:
+        db.close()
+    
+    raise PreventUpdate
+
+@callback(
+    Output('selected-image-data', 'data', allow_duplicate=True),
+    [Input('prompt-input', 'value')],
+    [State('selected-image-data', 'data')],
+    prevent_initial_call=True
+)
+
+def track_prompt_modifications(prompt_value, selected_image_data):
+    """
+    Track when a user modifies a suggestion in the prompt input.
+    This allows us to know when to set modified_suggestion=True in the Prompt object.
+    """
+    if selected_image_data is None or 'used_suggestion' not in selected_image_data:
+        raise PreventUpdate
+    
+    original_suggestion = selected_image_data.get('used_suggestion', '')
+    is_modified = prompt_value != original_suggestion
+    
+    if is_modified != selected_image_data.get('modified', False):
+        selected_image_data['modified'] = is_modified
+        
+        return selected_image_data
     
     raise PreventUpdate

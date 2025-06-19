@@ -21,14 +21,14 @@ CREATE TABLE IF NOT EXISTS chats (
 create_images_table = """
 CREATE TABLE IF NOT EXISTS images (
     id TEXT PRIMARY KEY,
-    input_prompt_id TEXT NOT NULL,
-    output_prompt_id TEXT NOT NULL,
+    input_prompt_id TEXT,
+    output_prompt_id TEXT,
     user_id INTEGER NOT NULL,
     chat_id INTEGER NOT NULL,
-    prompt_guidance FLOAT NOT NULL,
-    image_guidance FLOAT NOT NULL,
+    prompt_guidance FLOAT,
+    image_guidance FLOAT,
     path TEXT NOT NULL UNIQUE,
-    FOREIGN KEY (prompt_id) REFERENCES prompts(id),
+    selected BOOLEAN NOT NULL DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (chat_id) REFERENCES chats(id)
 );
