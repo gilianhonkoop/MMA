@@ -1,6 +1,11 @@
 import sqlite3
 import os
 
+## the function create_users_table Stores app users.
+# id: auto-incrementing primary key.
+# username: must be unique.
+# password: stored in plain text (note: consider hashing for real-world use).
+
 create_users_table = """
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -8,6 +13,8 @@ CREATE TABLE IF NOT EXISTS users (
     password TEXT NOT NULL
 );
 """
+
+## the function create_chats_table represents a conversation owned by a user_id.
 
 create_chats_table = """
 CREATE TABLE IF NOT EXISTS chats (
@@ -18,6 +25,23 @@ CREATE TABLE IF NOT EXISTS chats (
 );
 """
 
+
+# create_images_table = """
+# CREATE TABLE IF NOT EXISTS images (
+#     id TEXT PRIMARY KEY,
+#     input_prompt_id TEXT NOT NULL,
+#     output_prompt_id TEXT NOT NULL,
+#     user_id INTEGER NOT NULL,
+#     chat_id INTEGER NOT NULL,
+#     prompt_guidance FLOAT NOT NULL,
+#     image_guidance FLOAT NOT NULL,
+#     path TEXT NOT NULL UNIQUE,
+#     FOREIGN KEY (prompt_id) REFERENCES prompts(id),
+#     FOREIGN KEY (user_id) REFERENCES users(id),
+#     FOREIGN KEY (chat_id) REFERENCES chats(id)
+# );
+# """
+# create_images_table referenced prompt_id, but that doesn't exist
 create_images_table = """
 CREATE TABLE IF NOT EXISTS images (
     id TEXT PRIMARY KEY,
@@ -28,12 +52,17 @@ CREATE TABLE IF NOT EXISTS images (
     prompt_guidance FLOAT NOT NULL,
     image_guidance FLOAT NOT NULL,
     path TEXT NOT NULL UNIQUE,
-    FOREIGN KEY (prompt_id) REFERENCES prompts(id),
+    FOREIGN KEY (input_prompt_id) REFERENCES prompts(id),
+    FOREIGN KEY (output_prompt_id) REFERENCES prompts(id),
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (chat_id) REFERENCES chats(id)
 );
 """
 
+# the function create_prompts_table stores individual prompts used in chats.
+# Every prompt is tied to a chat (chat_id) and user (user_id).
+# Additional metadata: suggestion used (used_suggestion), image linkages, 
+# enhancement status (is_enhanced).
 create_prompts_table = """
 CREATE TABLE IF NOT EXISTS prompts (
     id TEXT PRIMARY KEY,
