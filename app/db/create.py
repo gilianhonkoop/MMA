@@ -52,12 +52,8 @@ CREATE TABLE IF NOT EXISTS images (
     prompt_guidance FLOAT,
     image_guidance FLOAT,
     path TEXT NOT NULL UNIQUE,
-<<<<<<< HEAD
-    selected BOOLEAN NOT NULL DEFAULT 0,
-=======
     FOREIGN KEY (input_prompt_id) REFERENCES prompts(id),
     FOREIGN KEY (output_prompt_id) REFERENCES prompts(id),
->>>>>>> c02dc376945a47a1c08fc6b3f9b799aca149ef47
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (chat_id) REFERENCES chats(id)
 );
