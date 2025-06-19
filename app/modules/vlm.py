@@ -32,12 +32,20 @@ class VLM():
     def make_suggestions(self, prompt : Prompt, n_suggestions : int = 3):
         format_example = str([f"suggestion {i+1}" for i in range(n_suggestions)])
         suggestion_prompt = (
-            f'Given the prompt: "{prompt.prompt}", generate {n_suggestions} variations, each adding an extra dimension to the original prompt. '
-            'Base your suggestions on the attached image, such that they would make sense in the context of the image. '
-            'Keep the core instruction of the original prompt intact. '
+            f'Based on the attached image and inspired by the concept: "{prompt.get_final_prompt()}", generate {n_suggestions} completely new and different prompt variations. '
+            'Each suggestion should be a fresh, creative prompt that relates to the image content but does not repeat or directly reference the original prompt text. '
+            'Focus on different aspects, styles, or interpretations that the image could inspire. '
             f'Return a JSON array of {n_suggestions} strings, like: {format_example}. '
             'Do not include any explanation or other text.'
         )
+        # format_example = str([f"suggestion {i+1}" for i in range(n_suggestions)])
+        # suggestion_prompt = (
+        #     f'Given the prompt: "{prompt.get_final_prompt()}", generate {n_suggestions} variations, each adding an extra dimension to the original prompt. '
+        #     'Base your suggestions on the attached image, such that they would make sense in the context of the image. '
+        #     'Keep the core instruction of the original prompt intact. '
+        #     f'Return a JSON array of {n_suggestions} strings, like: {format_example}. '
+        #     'Do not include any explanation or other text.'
+        # )
 
         messages = [
             {
