@@ -19,6 +19,12 @@ from brisque import BRISQUE
 # Make sure Python can resolve `db` inside `app`
 sys.path.append(os.path.abspath(".."))
 from db.database import Database
+from modules.metrics import (
+    get_or_compute_clip_score,
+    get_or_compute_lpips,
+    get_or_compute_brisque,
+    get_or_compute_bertscore
+)
 
 # Dataset path
 # dataset_path = "db/mma.db"
@@ -207,7 +213,7 @@ def update_image_prompt_fidelity(dashboard_data, mode):
 
     scores = []
     for _, row in df.iterrows():
-        score = calculate_clip_score(row['path'], row['prompt'])
+        score = get_or_compute_clip_score(row['id'], row['path'], row['prompt'])
         if score is not None:
             scores.append(score)
 
