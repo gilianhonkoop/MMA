@@ -74,6 +74,34 @@ class VLM():
 
         return suggestions
     
+    def extract_keywords(self, prompt: Prompt):
+        """
+        Enhance the prompt by generating a more detailed version based on the input image.
+        """
+        enhancement_prompt = (
+            f'Enhance the following prompt: "{prompt.prompt}". '
+            'Extract the main nouns, verbs, and adjectives from the prompt. Write them as a comma-separated list.'
+            'For example, the prompt: "Turn this into a green rubber duck, pixar style", would yield: "green, rubber duck, pixar style".'
+            'Do not include any explanation or other text.'
+        )
+
+        messages = [
+            {
+                "role": "system",
+                "content": [{"type": "text", "text": f"You are a helpful assistant that enhances image-to-image generation prompts based on user input."}]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": enhancement_prompt}
+                ]
+            }
+        ]
+
+        response = self.pipe(messages, max_new_tokens=512)[0]['generated_text'][2]['content']
+        
+        return response
+
     def enhance_prompt(self, prompt: Prompt):
         """
         Enhance the prompt by generating a more detailed version based on the input image.
