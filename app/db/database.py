@@ -85,15 +85,63 @@ class Database:
         return self.execute_query(query)
     
     # Image method: Handles retrieving image metadata.
-    def fetch_images_by_user(self, user_id, pandas=default_pandas):
-        query = "SELECT * FROM images WHERE user_id = ?"
+    def fetch_images_by_user(self, user_id, pandas=default_pandas, include_depth=False, is_selected=None):
+        """
+        Fetches all images associated with a specific user.
+        Args:
+            user_id (int): The ID of the user to fetch images for.
+            pandas (bool): If True, returns a pandas DataFrame; otherwise, returns a list of tuples.
+            include_depth (bool): If True, includes depth information in the result.
+            is_selected (bool or None): If True, fetch only selected images; if False, fetch only unselected images; if None, fetch all images.
+        Returns:
+            A pandas DataFrame or a list of tuples containing image metadata.
+        """
+        if not isinstance(user_id, int):
+            raise ValueError("user_id must be an integer")
+
+        if include_depth:
+            query = """
+            SELECT images.*, prompts.depth
+            FROM images
+            LEFT JOIN prompts ON images.input_prompt_id = prompts.id
+            WHERE images.user_id = ?
+            """
+        else:
+            query = "SELECT * FROM images WHERE user_id = ?"
+
+        # Add selected filter if specified
+        if is_selected is not None:
+            query += " AND images.selected = ?"
+            params = (user_id, 1 if is_selected else 0)
+        else:
+            params = (user_id,)
+
         if pandas:
-            return self.fetch_dataframe(query, (user_id,))
-        return self.execute_query(query, (user_id,))
+            return self.fetch_dataframe(query, params)
+        return self.execute_query(query, params)
 
     # Image method: Handles retrieving image metadata.    
-    def fetch_images_by_chat(self, chat_id, pandas=default_pandas):
-        query = "SELECT * FROM images WHERE chat_id = ?"
+    def fetch_images_by_chat(self, chat_id, pandas=default_pandas, include_depth=False):
+        """
+        Fetches all images associated with a specific chat.
+        Args:
+            chat_id (int): The ID of the chat to fetch images for.
+            pandas (bool): If True, returns a pandas DataFrame; otherwise, returns a list of tuples.
+            include_depth (bool): If True, includes depth information in the result.
+        Returns:
+            A pandas DataFrame or a list of tuples containing image metadata.
+        """
+        if not isinstance(chat_id, int):
+            raise ValueError("chat_id must be an integer")
+        if include_depth:
+            query = """
+            SELECT images.*, prompts.depth
+            FROM images
+            LEFT JOIN prompts ON images.input_prompt_id = prompts.id
+            WHERE images.chat_id = ?
+            """
+        else:
+            query = "SELECT * FROM images WHERE chat_id = ?"
         if pandas:
             return self.fetch_dataframe(query, (chat_id,))
         return self.execute_query(query, (chat_id,))
@@ -540,3 +588,12 @@ class Database:
             return False
         finally:
             self.close()
+
+    def delete_image(self, image_id):
+        try:
+            query = "DELETE FROM images WHERE id = ?"
+            self.execute_query(query, (image_id,))
+            return True
+        except Exception as e:
+            print(f"Error deleting image from database: {e}")
+            return False
