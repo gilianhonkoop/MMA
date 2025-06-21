@@ -884,12 +884,8 @@ class Database:
                 df["used_suggestion"] = df["used_suggestion"].astype(bool)
                 df["is_enhanced"] = df["is_enhanced"].astype(bool)
                 total = len(df)
-                # used_suggestion = df["used_suggestion"].sum()
-                # used_enhancement = df["is_enhanced"].sum()
-                # used_both = ((df["used_suggestion"]) & (df["is_enhanced"])).sum()
-                # no_ai = ((~df["used_suggestion"]) & (~df["is_enhanced"])).sum()
-                used_suggestion = ((df["used_suggestion"]) & (~df["is_enhanced"])).sum()
-                used_enhancement = ((~df["used_suggestion"]) & (df["is_enhanced"])).sum()
+                used_suggestion = df["used_suggestion"].sum()
+                used_enhancement = df["is_enhanced"].sum()
                 used_both = ((df["used_suggestion"]) & (df["is_enhanced"])).sum()
                 no_ai = ((~df["used_suggestion"]) & (~df["is_enhanced"])).sum()
 
@@ -903,13 +899,13 @@ class Database:
                     user_id=user_id,
                     chat_id=chat_id,
                     # used_suggestion_pct=used_suggestion / total,
-                    used_suggestion_pct=round(used_suggestion / total * 100, 4),
+                    used_suggestion_pct=round(used_suggestion / total, 4),
                     # used_enhancement_pct=used_enhancement / total,
-                    used_enhancement_pct=round(used_enhancement / total * 100, 4),
+                    used_enhancement_pct=round(used_enhancement / total, 4),
                     # used_both_pct=used_both / total,
-                    used_both_pct=round(used_both / total * 100, 4),
+                    used_both_pct=round(used_both / total, 4),
                     # no_ai_pct=no_ai / total)
-                    no_ai_pct=round(no_ai / total * 100, 4))
+                    no_ai_pct=round(no_ai / total, 4))
 
             return True
         except Exception as e:
