@@ -73,6 +73,7 @@ class VLM():
 
         return suggestions
     
+    
     def enhance_prompt(self, prompt):
         """
         Enhance the prompt by generating a more detailed version based on the input image.
