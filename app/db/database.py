@@ -302,7 +302,7 @@ class Database:
     # def insert_image(self, id: str, user_id: int, chat_id: int, prompt_guidance: float, 
     #                 image_guidance: float, path: str, input_prompt_id: str, output_prompt_id: str,):
     def insert_image(self, id: str, user_id: int, chat_id: int, prompt_guidance: float, 
-                    image_guidance: float, path: str, input_prompt_id: str, output_prompt_id: str, selected: bool = False,):
+                    image_guidance: float, path: str, input_prompt_id: str="", output_prompt_id: str="", selected: bool = False,):
         """
         Insert an image record into the database.
         
@@ -319,10 +319,10 @@ class Database:
         # Validate arguments
         if not isinstance(id, str):
             raise ValueError("id must be a string")
-        if not isinstance(input_prompt_id, str):
-            raise ValueError("input_prompt_id must be an string")
-        if not isinstance(output_prompt_id, str):
-            raise ValueError("output_prompt_id must be an string")
+        # if not isinstance(input_prompt_id, str):
+        #     raise ValueError("input_prompt_id must be an string")
+        # if not isinstance(output_prompt_id, str):
+        #     raise ValueError("output_prompt_id must be an string")
         if not isinstance(user_id, int):
             raise ValueError("user_id must be an integer")
         if not isinstance(chat_id, int):
@@ -762,39 +762,40 @@ class Database:
             else:
                 depth_input = 0
 
-            # Guidance Metrics
-            self.insert_guidance_metric(prompt_id=prompt_image.input_prompt,  # links to the prompt that produced this image
+            if depth_input > 0:
+                # Guidance Metrics
+                self.insert_guidance_metric(prompt_id=prompt_image.input_prompt,  # links to the prompt that produced this image
+                                            user_id=user_id,
+                                            chat_id=session_id,
+                                            depth=depth_input,
+                                            prompt_guidance=prompt_image.prompt_guidance,
+                                            image_guidance=prompt_image.image_guidance)
+
+                # Try to find previous image by depth
+                prior_images = self.fetch_images_by_chat(session_id, pandas=True)
+                prior_images = prior_images.merge(self.fetch_all_prompts(), how="left", left_on="output_prompt_id", right_on="id")
+                prior_images = prior_images[prior_images["depth"] == depth_input - 1]
+
+                previous_image_id = None
+                previous_image_path = None
+                if not prior_images.empty:
+                    previous_image_id = prior_images.iloc[0]["id_x"]  # id_x = image.id
+                    previous_image_path = prior_images.iloc[0]["path"]
+
+                lpips_score = None
+                if previous_image_path:
+                    # print(f"previous_image_path: {previous_image_path}")
+                    # print(f"current_image_path: {prompt_image.path}")
+                    lpips_score = get_or_compute_lpips(prompt_image.id, prompt_image.path, previous_image_path)
+                else:
+                    lpips_score = None
+                
+                self.insert_lpips_metric(image_id=prompt_image.id,
+                                        previous_image_id=previous_image_id,
                                         user_id=user_id,
                                         chat_id=session_id,
                                         depth=depth_input,
-                                        prompt_guidance=prompt_image.prompt_guidance,
-                                        image_guidance=prompt_image.image_guidance)
-
-            # Try to find previous image by depth
-            prior_images = self.fetch_images_by_chat(session_id, pandas=True)
-            prior_images = prior_images.merge(self.fetch_all_prompts(), how="left", left_on="output_prompt_id", right_on="id")
-            prior_images = prior_images[prior_images["depth"] == depth_input - 1]
-
-            previous_image_id = None
-            previous_image_path = None
-            if not prior_images.empty:
-                previous_image_id = prior_images.iloc[0]["id_x"]  # id_x = image.id
-                previous_image_path = prior_images.iloc[0]["path"]
-
-            lpips_score = None
-            if previous_image_path:
-                # print(f"previous_image_path: {previous_image_path}")
-                # print(f"current_image_path: {prompt_image.path}")
-                lpips_score = get_or_compute_lpips(prompt_image.id, prompt_image.path, previous_image_path)
-            else:
-                lpips_score = None
-            
-            self.insert_lpips_metric(image_id=prompt_image.id,
-                                     previous_image_id=previous_image_id,
-                                     user_id=user_id,
-                                     chat_id=session_id,
-                                     depth=depth_input,
-                                     lpips=lpips_score)
+                                        lpips=lpips_score)
             return True
         except Exception as e:
             print(f"Error saving image to database: {e}")
