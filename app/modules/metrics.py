@@ -28,6 +28,11 @@ lpips_cache = {}
 
 def calculate_lpips(img1_path, img2_path):
     try:
+        print(f"Calculating LPIPS for: {img1_path} vs {img2_path}")
+        if not os.path.exists(img1_path) or not os.path.exists(img2_path):
+            print(f"Missing image file: {img1_path} or {img2_path}")
+            return None
+
         key = (img1_path, img2_path)
         if key in lpips_cache:
             return lpips_cache[key]
@@ -42,6 +47,7 @@ def calculate_lpips(img1_path, img2_path):
         img2 = transform(Image.open(img2_path).convert('RGB')).unsqueeze(0).to(device)
         dist = lpips_model(img1, img2)
         lpips_cache[key] = dist.item()
+        print(f"LPIPS result: {dist.item()}")
         return dist.item()
     except Exception as e:
         logger.warning(f"LPIPS error ({img1_path}, {img2_path}): {e}")

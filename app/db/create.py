@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS lpips_metrics (
     user_id INTEGER NOT NULL,
     chat_id INTEGER NOT NULL,
     depth INTEGER NOT NULL,
-    lpips FLOAT,
+    lpips FLOAT DEFAULT NULL,
     FOREIGN KEY (image_id) REFERENCES images(id),
     FOREIGN KEY (previous_image_id) REFERENCES images(id),
     FOREIGN KEY (user_id) REFERENCES users(id),

@@ -1,221 +1,137 @@
 import dash
-from dash import html, dcc, callback, Input, Output
-from modules.image_metrics import get_dataframe, prompt_novelty_chart, image_novelty_chart, brisque_chart, clip_score_chart, pie_chart
+from dash import html, dcc, Input, Output, callback, State
+import plotly.graph_objects as go
+import pandas as pd
+import numpy as np
+from wordcloud import WordCloud
+import base64
+import io
+import os
+from db.database import Database
 
+app = dash.Dash(__name__)
+server = app.server
+
+# === Constants for styling ===
 BG = "#FFEED6"
 GREEN = "#38432E"
+G_HEIGHT = 260
 
-def get_real_figures(mode):
-    df = get_dataframe(mode)
-    return [
-        clip_score_chart(df),
-        brisque_chart(df),
-        image_novelty_chart(df),
-        prompt_novelty_chart(df),
-        pie_chart(df)
-    ]
+# === Utility to generate word cloud image from list of words ===
+def generate_wordcloud(words):
+    if not words:
+        return None
+    text = " ".join(words)
+    wc = WordCloud(width=400, height=200, background_color=BG, colormap="Dark2").generate(text)
+    buffer = io.BytesIO()
+    wc.to_image().save(buffer, format="PNG")
+    img_str = base64.b64encode(buffer.getvalue()).decode()
+    return f"data:image/png;base64,{img_str}"
 
-def create_admin_layout():
-    return html.Div([
-        dcc.Store(id="admin-tab-store", data="overall"),
-        html.Div(style={"backgroundColor": GREEN, "color": "white", "padding": "16px 20px"}, children=[
-            html.Span("AI-D", style={"fontWeight": "bold", "fontSize": "26px", "marginRight": "10px"}),
-            html.Span("|", style={"margin": "0 10px"}),
-            html.Span("Admin Dashboard", style={"fontStyle": "italic", "fontSize": "22px"})
-        ]),
-        html.Div(style={"display": "flex", "padding": "16px 20px 0 20px"}, children=[
-            html.Div("Prompt–Image Fidelity", style={"width": "33%", "fontSize": "20px", "fontWeight": "600", "color": GREEN}),
-            html.Div("Prompt & Image Novelty", style={"width": "33%", "textAlign": "center", "fontSize": "20px", "fontWeight": "600", "color": GREEN}),
-            html.Div("Utility & Quality", style={"width": "33%", "textAlign": "right", "fontSize": "20px", "fontWeight": "600", "color": GREEN})
-        ]),
-        html.Div(style={"width": "60%", "margin": "0 auto", "marginBottom": "10px"}, children=[
-            dcc.Tabs(id="admin-tab", value="overall", children=[
-                dcc.Tab(label="Overall", value="overview"),
-                dcc.Tab(label="Suggestions", value="suggestions"),
-                dcc.Tab(label="Enhancement", value="enhancement"),
-                dcc.Tab(label="Suggestions + Enhancement", value="both"),
-                dcc.Tab(label="No AI", value="noai")
-            ])
-        ]),
-        html.Div(id="admin-grid-content")
-    ])
+# === Layout ===
+app.layout = html.Div([
+    html.Div(style={"backgroundColor": GREEN, "color": "white", "padding": "16px 20px"}, children=[
+        html.Span("AI-D", style={"fontWeight": "bold", "fontSize": "26px", "marginRight": "10px"}),
+        html.Span("|", style={"margin": "0 10px"}),
+        html.Span("User Dashboard", style={"fontStyle": "italic", "fontSize": "22px"})
+    ]),
+    html.Div(style={"padding": "12px 20px"}, children=[
+        dcc.Input(id="user-id", type="number", placeholder="Enter User ID", style={"marginRight": "10px"}),
+        html.Button("Load Dashboard", id="load-button"),
+    ]),
+    dcc.Store(id="user-data"),
+    html.Div(id="dashboard-content")
+])
+
+# === Callbacks ===
+@callback(
+    Output("user-data", "data"),
+    Input("load-button", "n_clicks"),
+    State("user-id", "value")
+)
+def fetch_user_data(n_clicks, user_id):
+    if not n_clicks or not user_id:
+        return dash.no_update
+
+    with Database() as db:
+        df = db.fetch_user_dashboard_data(user_id)
+    return df.to_dict("records")
 
 @callback(
-    Output("admin-grid-content", "children"),
-    Input("admin-tab-store", "data")
+    Output("dashboard-content", "children"),
+    Input("user-data", "data")
 )
-def render_admin_figures(tab):
-    figs = get_real_figures(tab)
+def render_dashboard(data):
+    if not data:
+        return dash.no_update
+
+    df = pd.DataFrame(data)
+
+    # === Plot 1: Guidance vs Depth ===
+    fig1 = go.Figure()
+    fig1.add_trace(go.Scatter(x=df['depth'], y=df['prompt_guidance'], mode='lines+markers', name='Prompt Guidance'))
+    fig1.add_trace(go.Scatter(x=df['depth'], y=df['image_guidance'], mode='lines+markers', name='Image Guidance'))
+    fig1.update_layout(
+        title="Guidance vs Prompt Depth",
+        height=G_HEIGHT,
+        font=dict(family="sans-serif", size=13),
+        paper_bgcolor=BG, plot_bgcolor=BG,
+        margin=dict(t=50, b=30, l=40, r=40),
+        xaxis_title="Depth", yaxis_title="Guidance"
+    )
+
+    # === Plot 2: Bertscore & LPIPS vs Depth ===
+    fig2 = go.Figure()
+    if 'bert_novelty' in df.columns:
+        fig2.add_trace(go.Scatter(x=df['depth'], y=df['bert_novelty'], mode='lines+markers', name='1 - BERTScore'))
+    if 'lpips' in df.columns:
+        fig2.add_trace(go.Scatter(x=df['depth'], y=df['lpips'], mode='lines+markers', name='LPIPS'))
+    fig2.update_layout(
+        title="Prompt and Image Novelty vs Depth",
+        height=G_HEIGHT,
+        font=dict(family="sans-serif", size=13),
+        paper_bgcolor=BG, plot_bgcolor=BG,
+        margin=dict(t=50, b=30, l=40, r=40),
+        xaxis_title="Depth", yaxis_title="Score"
+    )
+
+    # === Plot 3: Pie chart of Functionality ===
+    func_counts = {
+        "Suggestions": df['used_suggestion'].sum(),
+        "Enhancement": df['is_enhanced'].sum(),
+        "Suggestions & Enhancement": ((df['used_suggestion']) & (df['is_enhanced'])).sum(),
+        "No AI": ((~df['used_suggestion']) & (~df['is_enhanced'])).sum()
+    }
+    fig3 = go.Figure(go.Pie(labels=list(func_counts.keys()), values=list(func_counts.values()),
+                            marker_colors=["#7B002C", "#00008B", "#8B4513", "#006400"], textinfo="label+percent"))
+    fig3.update_layout(
+        title="Functionality Usage",
+        height=G_HEIGHT,
+        font=dict(family="sans-serif", size=13),
+        paper_bgcolor=BG, plot_bgcolor=BG,
+        margin=dict(t=50, b=30, l=40, r=40),
+        showlegend=False
+    )
+
+    # === Plot 4: Word Cloud from Relevant Words ===
+    all_words = []
+    if 'relevant_words' in df.columns:
+        for words in df['relevant_words'].dropna():
+            all_words.extend(words.split(","))
+
+    wordcloud_img = generate_wordcloud(all_words)
+    wordcloud_fig = html.Img(src=wordcloud_img, style={"width": "100%"}) if wordcloud_img else html.Div("No keywords to display")
+
     return html.Div([
         html.Div(style={"display": "flex"}, children=[
-            html.Div(dcc.Graph(figure=figs[0]), style={"width": "33%"}),
-            html.Div(dcc.Graph(figure=figs[2]), style={"width": "33%"}),
-            html.Div(dcc.Graph(figure=figs[1]), style={"width": "33%"})
+            html.Div(dcc.Graph(figure=fig1), style={"width": "50%"}),
+            html.Div(dcc.Graph(figure=fig2), style={"width": "50%"})
         ]),
         html.Div(style={"display": "flex"}, children=[
-            html.Div(dcc.Graph(figure=figs[3]), style={"width": "50%"}),
-            html.Div(dcc.Graph(figure=figs[4]), style={"width": "50%"})
+            html.Div(dcc.Graph(figure=fig3), style={"width": "50%"}),
+            html.Div(wordcloud_fig, style={"width": "50%", "padding": "10px"})
         ])
     ])
 
-@callback(
-    Output("admin-tab-store", "data"),
-    Input("admin-tab", "value")
-)
-def update_tab(tab):
-    return tab
-
-
-
-# from dash import dcc, html, callback, Input, Output
-# import plotly.graph_objects as go
-# from db.database import Database
-# import numpy as np
-# from modules.image_metrics import calculate_clip_score, calculate_lpips, calculate_brisque_score
-# from bert_score import score as bertscore
-# import pandas as pd
-
-# # Styling constants
-# BG = "#FFEED6"
-# GREEN = "#38432E"
-# G_HEIGHT = 260
-
-
-# def get_mode(row):
-#     if row['enhanced_prompt'] and row['used_suggestion']:
-#         return 'both'
-#     elif row['enhanced_prompt']:
-#         return 'enhancement'
-#     elif row['used_suggestion']:
-#         return 'suggestions'
-#     return 'noai'
-
-# def filter_by_tab(df, tab):
-#     if tab == 'overall':
-#         return df
-#     df['mode'] = df.apply(get_mode, axis=1)
-#     return df[df['mode'] == tab]
-
-# # Real data-backed chart functions
-
-# def clip_line_chart(df):
-#     y = []
-#     for _, row in df.iterrows():
-#         score = calculate_clip_score(row['path'], row['prompt'])
-#         if score is not None:
-#             y.append(score)
-#     if not y:
-#         return go.Figure()
-#     fig = go.Figure([go.Scatter(y=y, mode='lines+markers', line=dict(color="#7B002C"))])
-#     fig.update_layout(title="Image–Prompt Fidelity (CLIPScore)", height=G_HEIGHT,
-#                       paper_bgcolor=BG, plot_bgcolor=BG, margin=dict(t=50, b=30, l=40, r=40))
-#     return fig
-
-# def lpips_line_chart(df):
-#     scores = []
-#     for _, row in df.iterrows():
-#         if row['depth'] <= 1:
-#             continue
-#         prev = df[(df['user_id'] == row['user_id']) & (df['depth'] == row['depth'] - 1)]
-#         if prev.empty:
-#             continue
-#         score = calculate_lpips(row['path'], prev.iloc[0]['path'])
-#         if score is not None:
-#             scores.append(score)
-#     fig = go.Figure([go.Scatter(y=scores, mode='lines+markers', line=dict(color="#00008B"))])
-#     fig.update_layout(title="Image Novelty (LPIPS)", height=G_HEIGHT,
-#                       paper_bgcolor=BG, plot_bgcolor=BG, margin=dict(t=50, b=30, l=40, r=40))
-#     return fig
-
-# def brisque_chart(df):
-#     scores = [calculate_brisque_score(row['path']) for _, row in df.iterrows() if calculate_brisque_score(row['path']) is not None]
-#     fig = go.Figure([go.Scatter(y=scores, mode='lines+markers', line=dict(color="#8B4513"))])
-#     fig.update_layout(title="Image Quality (BRISQUE)", height=G_HEIGHT,
-#                       paper_bgcolor=BG, plot_bgcolor=BG, margin=dict(t=50, b=30, l=40, r=40))
-#     return fig
-
-# def bertscore_line_chart(df):
-#     scores = []
-#     for _, row in df.iterrows():
-#         if row['depth'] <= 1:
-#             continue
-#         prev = df[(df['user_id'] == row['user_id']) & (df['depth'] == row['depth'] - 1)]
-#         if prev.empty:
-#             continue
-#         try:
-#             _, _, F1 = bertscore([row['prompt']], [prev.iloc[0]['prompt']], lang='en', verbose=False)
-#             scores.append(1 - F1.item())
-#         except:
-#             continue
-#     fig = go.Figure([go.Scatter(y=scores, mode='lines+markers')])
-#     fig.update_layout(title="Prompt Novelty (BERTScore)", height=G_HEIGHT,
-#                       paper_bgcolor=BG, plot_bgcolor=BG, margin=dict(t=50, b=30, l=40, r=40))
-#     return fig
-
-# def pie_chart(df):
-#     df['mode'] = df.apply(get_mode, axis=1)
-#     counts = df['mode'].value_counts()
-#     fig = go.Figure([go.Pie(labels=counts.index, values=counts.values)])
-#     fig.update_layout(title="Interaction Mode Distribution", height=G_HEIGHT,
-#                       paper_bgcolor=BG, plot_bgcolor=BG, margin=dict(t=50, b=30, l=40, r=40))
-#     return fig
-
-# def create_admin_layout():
-#     return html.Div([
-#         dcc.Store(id="insight-tab-store", data="overall"),
-
-#         html.Div(style={"backgroundColor": GREEN, "color": "white", "padding": "16px 20px"}, children=[
-#             html.Span("AI-D", style={"fontWeight": "bold", "fontSize": "26px", "marginRight": "10px"}),
-#             html.Span("|", style={"margin": "0 10px"}),
-#             html.Span("Admin Dashboard", style={"fontStyle": "italic", "fontSize": "22px"})
-#         ]),
-
-#         html.Div(style={"display": "flex", "padding": "16px 20px 0 20px"}, children=[
-#             html.Div("Parameter Insight", style={"width": "25%", "fontSize": "20px", "fontWeight": "600", "color": GREEN}),
-#             html.Div("Prompt-Image Insight", style={"width": "50%", "textAlign": "center", "fontSize": "20px", "fontWeight": "600", "color": GREEN}),
-#             html.Div("Dialogue history", style={"width": "25%", "textAlign": "right", "fontSize": "20px", "fontWeight": "600", "color": GREEN})
-#         ]),
-
-#         html.Div(style={"width": "50%", "marginLeft": "25%", "marginBottom": "10px"}, children=[
-#             dcc.Tabs(id="insight-tab", value="overall", children=[
-#                 dcc.Tab(label="Overall", value="overall"),
-#                 dcc.Tab(label="Suggestions", value="suggestions"),
-#                 dcc.Tab(label="Enhancement", value="enhancement"),
-#                 dcc.Tab(label="Suggestions & Enhancement", value="both"),
-#                 dcc.Tab(label="No AI", value="noai")
-#             ])
-#         ]),
-
-#         html.Div(id="grid-content")
-#     ])
-
-# @callback(
-#     Output("insight-tab-store", "data"),
-#     Input("insight-tab", "value")
-# )
-# def update_tab(tab):
-#     return tab
-
-# @callback(
-#     Output("grid-content", "children"),
-#     Input("insight-tab-store", "data")
-# )
-# def render_figures(tab):
-#     with Database() as db:
-#         df_images = db.fetch_all_images()
-#         df_prompts = db.fetch_all_prompts()
-#     df = df_images.merge(df_prompts, left_on="output_prompt_id", right_on="id", suffixes=("_img", ""))
-#     df = filter_by_tab(df, tab)
-
-#     return html.Div([
-#         html.Div(style={"display": "flex"}, children=[
-#             html.Div(dcc.Graph(figure=clip_line_chart(df)), style={"width": "33%"}),
-#             html.Div(dcc.Graph(figure=lpips_line_chart(df)), style={"width": "33%"}),
-#             html.Div(dcc.Graph(figure=brisque_chart(df)), style={"width": "33%"})
-#         ]),
-#         html.Div(style={"display": "flex"}, children=[
-#             html.Div(dcc.Graph(figure=bertscore_line_chart(df)), style={"width": "33%"}),
-#             html.Div(dcc.Graph(figure=pie_chart(df)), style={"width": "33%"}),
-#             html.Div("", style={"width": "33%"})
-#         ])
-#     ])
+if __name__ == '__main__':
+    app.run_server(debug=True)
