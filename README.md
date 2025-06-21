@@ -8,13 +8,12 @@ ssh <user>@snellius.surf.nl
 
 ### Setup project
 ```
-cd vincent
+cd MMA
 python -m venv .venv
 source .venv/bin/activate
 pip install -r ../all_requirements.txt
 ```
 
-This contains all the requirements for image2image and from the MMA demo provided in class.
 
 ### Access compute node
 ```
@@ -24,11 +23,8 @@ srun --partition=gpu_a100 --gpus=1 --ntasks=1 --cpus-per-task=18 --time=00:20:00
 ### Run server on Snellius
 On the root directory of the project run:
 ```
-export PYTHONPATH="$PYTHONPATH:$PWD" 
-python src/main.py
+python app/main.py
 ```
-
-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
 
 ### Connect to server on your local machine
 ```
