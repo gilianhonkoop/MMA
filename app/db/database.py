@@ -299,8 +299,10 @@ class Database:
 
     # Image method: Handles adding image metadata.
     # input_prompt_id and output_prompt_id connect images to generation prompts.
+    # def insert_image(self, id: str, user_id: int, chat_id: int, prompt_guidance: float, 
+    #                 image_guidance: float, path: str, input_prompt_id: str, output_prompt_id: str,):
     def insert_image(self, id: str, user_id: int, chat_id: int, prompt_guidance: float, 
-                    image_guidance: float, path: str, input_prompt_id: str, output_prompt_id: str,):
+                    image_guidance: float, path: str, input_prompt_id: str, output_prompt_id: str, selected: bool = False,):
         """
         Insert an image record into the database.
         
@@ -332,11 +334,13 @@ class Database:
         if not isinstance(path, str):
             raise ValueError("path must be a string")
         
+        # added selected
         query = """
-        INSERT INTO images (id, input_prompt_id, output_prompt_id, user_id, chat_id, prompt_guidance, image_guidance, path)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO images (id, input_prompt_id, output_prompt_id, user_id, chat_id, prompt_guidance, image_guidance, path, selected)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
-        params = (id, input_prompt_id, output_prompt_id, user_id, chat_id, prompt_guidance, image_guidance, path)
+        # added selected such that = 1 if true, else = 0. 
+        params = (id, input_prompt_id, output_prompt_id, user_id, chat_id, prompt_guidance, image_guidance, path, 1 if selected else 0)
         try:
             self.execute_query(query, params)
         except sqlite3.IntegrityError as e:
@@ -746,7 +750,8 @@ class Database:
                 image_guidance=prompt_image.image_guidance if prompt_image.image_guidance else 0.0,
                 path=prompt_image.path,
                 input_prompt_id=prompt_image.input_prompt,
-                output_prompt_id=prompt_image.output_prompt
+                output_prompt_id=prompt_image.output_prompt,
+                selected=prompt_image.selected
             )
 
             # Get current depth from input prompt
