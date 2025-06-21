@@ -25,23 +25,6 @@ CREATE TABLE IF NOT EXISTS chats (
 );
 """
 
-
-# create_images_table = """
-# CREATE TABLE IF NOT EXISTS images (
-#     id TEXT PRIMARY KEY,
-#     input_prompt_id TEXT NOT NULL,
-#     output_prompt_id TEXT NOT NULL,
-#     user_id INTEGER NOT NULL,
-#     chat_id INTEGER NOT NULL,
-#     prompt_guidance FLOAT NOT NULL,
-#     image_guidance FLOAT NOT NULL,
-#     path TEXT NOT NULL UNIQUE,
-#     FOREIGN KEY (prompt_id) REFERENCES prompts(id),
-#     FOREIGN KEY (user_id) REFERENCES users(id),
-#     FOREIGN KEY (chat_id) REFERENCES chats(id)
-# );
-# """
-# create_images_table referenced prompt_id, but that doesn't exist
 create_images_table = """
 CREATE TABLE IF NOT EXISTS images (
     id TEXT PRIMARY KEY,
@@ -66,8 +49,8 @@ CREATE TABLE IF NOT EXISTS images (
 create_prompts_table = """
 CREATE TABLE IF NOT EXISTS prompts (
     id TEXT PRIMARY KEY,
-    chat_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
+    chat_id INTEGER NOT NULL,
     prompt TEXT NOT NULL,
     depth INTEGER NOT NULL,
     used_suggestion BOOLEAN NOT NULL DEFAULT 0,
@@ -83,6 +66,85 @@ CREATE TABLE IF NOT EXISTS prompts (
 );
 """
 
+create_bertscore_metrics_table = """
+CREATE TABLE IF NOT EXISTS bertscore_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prompt_id TEXT NOT NULL,
+    previous_prompt_id TEXT,
+    user_id INTEGER NOT NULL,
+    chat_id INTEGER NOT NULL,
+    depth INTEGER NOT NULL,
+    bert_novelty FLOAT,
+    FOREIGN KEY (prompt_id) REFERENCES prompts(id),
+    FOREIGN KEY (previous_prompt_id) REFERENCES prompts(id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (chat_id) REFERENCES chats(id)
+);
+"""
+
+create_lpips_metrics_table = """
+CREATE TABLE IF NOT EXISTS lpips_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    image_id TEXT NOT NULL,
+    previous_image_id TEXT,
+    user_id INTEGER NOT NULL,
+    chat_id INTEGER NOT NULL,
+    depth INTEGER NOT NULL,
+    lpips FLOAT,
+    FOREIGN KEY (image_id) REFERENCES images(id),
+    FOREIGN KEY (previous_image_id) REFERENCES images(id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (chat_id) REFERENCES chats(id)
+);
+"""
+
+create_guidance_metrics_table = """
+CREATE TABLE IF NOT EXISTS guidance_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prompt_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    chat_id INTEGER NOT NULL,
+    depth INTEGER NOT NULL,
+    prompt_guidance FLOAT,
+    image_guidance FLOAT,
+    FOREIGN KEY (prompt_id) REFERENCES prompts(id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (chat_id) REFERENCES chats(id)
+);
+"""
+
+# pct = percentage
+create_functionality_metrics_table = """
+CREATE TABLE IF NOT EXISTS functionality_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    chat_id INTEGER NOT NULL,
+    used_suggestion_pct FLOAT,
+    used_enhancement_pct FLOAT,
+    used_both_pct FLOAT,
+    no_ai_pct FLOAT,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (chat_id) REFERENCES chats(id)
+);
+"""
+
+create_prompt_word_metrics_table = """
+CREATE TABLE IF NOT EXISTS prompt_word_metrics (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prompt_id TEXT NOT NULL,
+    user_id INTEGER,
+    chat_id INTEGER,
+    depth INTEGER,
+    full_text TEXT,
+    word_count INTEGER,
+    relevant_words TEXT,
+    FOREIGN KEY (prompt_id) REFERENCES prompts(id),
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (chat_id) REFERENCES chats(id)
+);
+"""
+
+
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.abspath(__file__))
     db_path = os.path.join(script_dir, "mma.db")
@@ -94,6 +156,12 @@ if __name__ == "__main__":
     cur.execute(create_chats_table)
     cur.execute(create_prompts_table)
     cur.execute(create_images_table)
+    cur.execute(create_bertscore_metrics_table)
+    cur.execute(create_lpips_metrics_table)
+    cur.execute(create_guidance_metrics_table)
+    cur.execute(create_functionality_metrics_table)
+    cur.execute(create_prompt_word_metrics_table)
+
     
     con.commit()
     con.close()
