@@ -201,6 +201,55 @@ def create_user_layout():
                     dbc.Button("Generate Images", id="submit-button", color="primary", disabled=True),
                 ], className="mb-3"),
                 
+                # Guidance controls
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Checkbox(
+                            id='guidance-enable-checkbox',
+                            label="Enable Custom Guidance Settings",
+                            value=False,
+                            className="mb-3"
+                        )
+                    ], width=12)
+                ]),
+                
+                dbc.Row([
+                    dbc.Col([
+                        html.Label("Prompt Guidance", className="mb-1"),
+                        dcc.Slider(
+                            id='prompt-guidance-slider',
+                            min=0,
+                            max=2,
+                            step=1,
+                            value=1,
+                            marks={
+                                0: 'Low',
+                                1: 'Medium',
+                                2: 'High'
+                            },
+                            tooltip={"placement": "bottom", "always_visible": True},
+                            disabled=True
+                        )
+                    ], width=6),
+                    dbc.Col([
+                        html.Label("Image Guidance", className="mb-1"),
+                        dcc.Slider(
+                            id='image-guidance-slider',
+                            min=0,
+                            max=2,
+                            step=1,
+                            value=1,
+                            marks={
+                                0: 'Low',
+                                1: 'Medium',
+                                2: 'High'
+                            },
+                            tooltip={"placement": "bottom", "always_visible": True},
+                            disabled=True
+                        )
+                    ], width=6),
+                ], className="mb-3"),
+                
                 dbc.Spinner(html.Div(id="loading-output")),
             ], width={"size": 10, "offset": 1}),
         ]),
@@ -336,6 +385,9 @@ def process_uploaded_image(contents, user_info):
     [State('original-image-store', 'data'),
      State('prompt-input', 'value'),
      State('ai-enhancement-checkbox', 'value'),
+     State('guidance-enable-checkbox', 'value'),
+     State('prompt-guidance-slider', 'value'),
+     State('image-guidance-slider', 'value'),
      State('session-data', 'data'),
      State('tree-data', 'data'),
      State('selected-image-data', 'data'),
@@ -344,7 +396,7 @@ def process_uploaded_image(contents, user_info):
 )
 
 # Image Generation Callback
-def generate_images(n_clicks, image_src, prompt_text, use_ai, session_data, tree_data, selected_image_data, user_info):
+def generate_images(n_clicks, image_src, prompt_text, use_ai, guidance_enabled, prompt_guidance, image_guidance, session_data, tree_data, selected_image_data, user_info):
     """
     Triggered on clicking "Generate Images". It uses:
     Image source, Prompt, AI enhancement option, Current session and tree state
@@ -406,7 +458,16 @@ def generate_images(n_clicks, image_src, prompt_text, use_ai, session_data, tree
     
     image_transformer = get_image_transformer_instance()
     
-    output_images = prompt_obj.get_new_images(image_transformer, n=5, save=True)
+    # Only pass guidance values if custom guidance is enabled
+    guidance_params = {}
+    if guidance_enabled:
+        guidance_params['prompt_guidance'] = prompt_guidance
+        guidance_params['image_guidance'] = image_guidance
+    else:
+        guidance_params['prompt_guidance'] = None
+        guidance_params['image_guidance'] = None
+    
+    output_images = prompt_obj.get_new_images(image_transformer, n=3, save=True, **guidance_params)
     
     for img in output_images:
         img.set_input_prompt(prompt_obj.id)
@@ -927,3 +988,12 @@ def reset_for_new_chat(n_clicks):
         {'display': 'none'},
         {}
     )
+
+@callback(
+    [Output('prompt-guidance-slider', 'disabled'),
+     Output('image-guidance-slider', 'disabled')],
+    [Input('guidance-enable-checkbox', 'value')]
+)
+def toggle_guidance_sliders(enable_guidance):
+    """Enable or disable the guidance sliders based on checkbox state"""
+    return not enable_guidance, not enable_guidance

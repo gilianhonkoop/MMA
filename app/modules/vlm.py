@@ -7,15 +7,14 @@ import sys
 import torch
 import dotenv
 
-from .prompt import Prompt
-
 class VLM():
-    def __init__(self, model="google/gemma-3-4b-it", login_required=True):
+    def __init__(self, model="llava-hf/llava-1.5-7b-hf", login_required=True, device=None):
         if login_required:
             dotenv.load_dotenv()
             login(os.environ.get("HF_TOKEN"))
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
         processor = AutoProcessor.from_pretrained(model, use_fast=True)
 
         self.pipe = pipeline(
@@ -29,7 +28,7 @@ class VLM():
             device=device
         )
 
-    def make_suggestions(self, prompt : Prompt, n_suggestions : int = 3):
+    def make_suggestions(self, prompt, n_suggestions : int = 3):
         format_example = str([f"suggestion {i+1}" for i in range(n_suggestions)])
         suggestion_prompt = (
             f'Based on the attached image and inspired by the concept: "{prompt.get_final_prompt()}", generate {n_suggestions} completely new and different prompt variations. '
@@ -74,7 +73,7 @@ class VLM():
 
         return suggestions
     
-    def enhance_prompt(self, prompt: Prompt):
+    def enhance_prompt(self, prompt):
         """
         Enhance the prompt by generating a more detailed version based on the input image.
         """

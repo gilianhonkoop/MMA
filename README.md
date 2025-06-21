@@ -18,7 +18,7 @@ This contains all the requirements for image2image and from the MMA demo provide
 
 ### Access compute node
 ```
-srun --partition=gpu_a100 --gpus=1 --ntasks=1 --cpus-per-task=18 --time=00:20:00 --pty bash -i
+srun --partition=gpu_a100 --gpus=4 --ntasks=1 --cpus-per-task=72 --time=00:20:00 --pty bash -i
 ```
 
 ### Run server on Snellius

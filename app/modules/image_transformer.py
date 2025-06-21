@@ -4,9 +4,11 @@ import os
 from PIL import Image
 
 class ImageTransformer:
-    def __init__(self, model = "timbrooks/instruct-pix2pix"):
+    def __init__(self, model = "timbrooks/instruct-pix2pix", device=None):
         self.model = model
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
 
         self.pipe = StableDiffusionInstructPix2PixPipeline.from_pretrained(
             model, torch_dtype=torch.bfloat16, variant="fp16", safety_checker=None
@@ -15,7 +17,7 @@ class ImageTransformer:
         self.pipe.scheduler = EulerAncestralDiscreteScheduler.from_config(self.pipe.scheduler.config)
         self.pipe.enable_model_cpu_offload()
 
-    def transform(self, init_image, prompt, guidance_scale=None, image_guidance_scale=None, custom_size=False, image_size=(1024, 1024)):
+    def transform(self, init_image, prompt, guidance_scale=None, image_guidance_scale=None, custom_size=False, image_size=(1024, 1024), prompt_guidance=None, image_guidance=None):
         """
         Transform an image based on a prompt using the InstructPix2Pix model.
 
@@ -24,9 +26,10 @@ class ImageTransformer:
             prompt (str): The text prompt for the transformation.
             guidance_scale (float): Strength of the transformation.
             image_guidance_scale (float): Scale for image guidance.
-            save_path (str): Path to save the transformed image. If None, the image will not be saved.
             custom_size (bool): Whether to use a custom image size.
             image_size (tuple): The size to resize the image to if custom_size is True.
+            prompt_guidance (int): Prompt guidance level (0=Low, 1=Medium, 2=High).
+            image_guidance (int): Image guidance level (0=Low, 1=Medium, 2=High).
 
         Returns:
             PIL.Image: The transformed image.
@@ -43,13 +46,6 @@ class ImageTransformer:
             raise ValueError("custom_size must be a boolean")
         if not isinstance(image_size, tuple) or len(image_size) != 2:
             raise ValueError("image_size must be a tuple of two integers (width, height)")
-
-
-        if guidance_scale is None:
-            guidance_scale = torch.randint(1, 15, (1,)).item()
-        if image_guidance_scale is None:
-            image_guidance_scale = torch.randint(1, 5, (1,)).item()
-
 
         # Preferred size for the image as per Stable Diffusion docs
         default_size = 1024
