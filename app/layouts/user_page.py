@@ -1,4 +1,4 @@
-from dash import dcc, html, callback, Input, Output, State, ctx
+from dash import dcc, html, callback, Input, Output, State, ctx, ALL
 # Bootstrap components for styling
 import dash_bootstrap_components as dbc
 # Cytoscape integration to draw graph/tree visualizations
@@ -98,6 +98,35 @@ def create_suggestion_button(idx):
         style={'display': 'none'}
     )
 
+# Chat Sidebar
+def create_chat_sidebar():
+    """Creates a sidebar showing all chats for the logged-in user"""
+    return html.Div([
+        html.H5("Your Chats", className="mb-3"),
+        dbc.Button(
+            "New Chat",
+            id="new-chat-button",
+            color="primary",
+            className="mb-3 w-100",
+            size="sm"
+        ),
+        html.Div(
+            id="chat-list-container",
+            children=[
+                dbc.Spinner(
+                    html.Div("Loading chats...", className="text-center"),
+                    size="sm"
+                )
+            ],
+            style={'maxHeight': '400px', 'overflowY': 'auto'}
+        )
+    ], style={
+        'backgroundColor': '#f8f9fa',
+        'padding': '15px',
+        'borderRadius': '5px',
+        'border': '1px solid #dee2e6'
+    })
+
 # Layout Builder
 def create_user_layout():
     """Builds the main page layout:
@@ -112,6 +141,9 @@ def create_user_layout():
         html.H1("Image Generator Interface", className="my-3"),
         
         dbc.Row([
+            dbc.Col([
+                create_chat_sidebar()
+            ], width=3),
             dbc.Col([
                 html.Div([
                     html.Div(
@@ -142,7 +174,7 @@ def create_user_layout():
                         ),
                     ], id="upload-container"),
                 ], className="mb-4"),
-            ], width=12),
+            ], width=9),
         ]),
         
         dbc.Row([
@@ -169,6 +201,55 @@ def create_user_layout():
                     dbc.Button("Generate Images", id="submit-button", color="primary", disabled=True),
                 ], className="mb-3"),
                 
+                # Guidance controls
+                dbc.Row([
+                    dbc.Col([
+                        dbc.Checkbox(
+                            id='guidance-enable-checkbox',
+                            label="Enable Custom Guidance Settings",
+                            value=False,
+                            className="mb-3"
+                        )
+                    ], width=12)
+                ]),
+                
+                dbc.Row([
+                    dbc.Col([
+                        html.Label("Prompt Guidance", className="mb-1"),
+                        dcc.Slider(
+                            id='prompt-guidance-slider',
+                            min=0,
+                            max=2,
+                            step=1,
+                            value=1,
+                            marks={
+                                0: 'Low',
+                                1: 'Medium',
+                                2: 'High'
+                            },
+                            tooltip={"placement": "bottom", "always_visible": True},
+                            disabled=True
+                        )
+                    ], width=6),
+                    dbc.Col([
+                        html.Label("Image Guidance", className="mb-1"),
+                        dcc.Slider(
+                            id='image-guidance-slider',
+                            min=0,
+                            max=2,
+                            step=1,
+                            value=1,
+                            marks={
+                                0: 'Low',
+                                1: 'Medium',
+                                2: 'High'
+                            },
+                            tooltip={"placement": "bottom", "always_visible": True},
+                            disabled=True
+                        )
+                    ], width=6),
+                ], className="mb-3"),
+                
                 dbc.Spinner(html.Div(id="loading-output")),
             ], width={"size": 10, "offset": 1}),
         ]),
@@ -177,22 +258,40 @@ def create_user_layout():
         dcc.Store(id='tree-data'),
         dcc.Store(id='selected-image-data'),
         dcc.Store(id='original-image-store'),
+        dcc.Store(id='active-chat-data'),
     ])
 
 @callback(
     Output('submit-button', 'disabled'),
     [Input('image-upload', 'contents'),
-     Input('prompt-input', 'value')]
+     Input('prompt-input', 'value'),
+     Input('tree-data', 'data'),
+     Input('selected-image-data', 'data')]
 )
 
 # Enable Submit Button
-def enable_submit_button(image_contents, prompt):
-    """ Enables the "Generate Images" button only if: 
-    An image is uploaded, A prompt is entered
+def enable_submit_button(image_contents, prompt, tree_data, selected_image_data):
+    """ Enables the "Generate Images" button when:
+    - New chat: An image is uploaded AND a prompt is entered
+    - Existing chat: A node is selected AND a prompt is entered
     """
-    if image_contents is None or not prompt:
+    if not prompt:
         return True
-    return False
+    
+    # For new chats - need uploaded image
+    if image_contents is not None:
+        return False
+    
+    # For existing chats - check if we have tree data and either a selected node or root node
+    if tree_data and tree_data.get('nodes'):
+        # If we have selected image data with a node ID, enable button
+        if selected_image_data and selected_image_data.get('selected_node_id'):
+            return False
+        # If no selected image data but we have tree data (chat loaded), allow generation from current node
+        if tree_data.get('current_node'):
+            return False
+    
+    return True
 
 @callback(
     [Output('tree-graph-container', 'style'),
@@ -286,6 +385,9 @@ def process_uploaded_image(contents, user_info):
     [State('original-image-store', 'data'),
      State('prompt-input', 'value'),
      State('ai-enhancement-checkbox', 'value'),
+     State('guidance-enable-checkbox', 'value'),
+     State('prompt-guidance-slider', 'value'),
+     State('image-guidance-slider', 'value'),
      State('session-data', 'data'),
      State('tree-data', 'data'),
      State('selected-image-data', 'data'),
@@ -294,7 +396,7 @@ def process_uploaded_image(contents, user_info):
 )
 
 # Image Generation Callback
-def generate_images(n_clicks, image_src, prompt_text, use_ai, session_data, tree_data, selected_image_data, user_info):
+def generate_images(n_clicks, image_src, prompt_text, use_ai, guidance_enabled, prompt_guidance, image_guidance, session_data, tree_data, selected_image_data, user_info):
     """
     Triggered on clicking "Generate Images". It uses:
     Image source, Prompt, AI enhancement option, Current session and tree state
@@ -356,7 +458,16 @@ def generate_images(n_clicks, image_src, prompt_text, use_ai, session_data, tree
     
     image_transformer = get_image_transformer_instance()
     
-    output_images = prompt_obj.get_new_images(image_transformer, n=5, save=True)
+    # Only pass guidance values if custom guidance is enabled
+    guidance_params = {}
+    if guidance_enabled:
+        guidance_params['prompt_guidance'] = prompt_guidance
+        guidance_params['image_guidance'] = image_guidance
+    else:
+        guidance_params['prompt_guidance'] = None
+        guidance_params['image_guidance'] = None
+    
+    output_images = prompt_obj.get_new_images(image_transformer, n=3, save=True, **guidance_params)
     
     for img in output_images:
         img.set_input_prompt(prompt_obj.id)
@@ -599,3 +710,290 @@ def track_prompt_modifications(prompt_value, selected_image_data):
         return selected_image_data
     
     raise PreventUpdate
+
+@callback(
+    Output('chat-list-container', 'children'),
+    [Input('app-user-info', 'data')],
+    prevent_initial_call=False
+)
+def load_user_chats(user_info):
+    """Load and display all chats for the logged-in user"""
+    if not user_info:
+        return html.Div("Please log in to view your chats.", className="text-center text-muted")
+    
+    try:
+        user_id = user_info.get('id', 1)
+        
+        db = Database()
+        db.connect()
+        
+        chats_df = db.fetch_chats_by_user(user_id, pandas=True)
+        db.close()
+        
+        if chats_df.empty:
+            return html.Div("No chats found. Create a new chat to get started!", className="text-center text-muted")
+        
+        chat_buttons = []
+        for _, chat in chats_df.iterrows():
+            title = chat['title']
+            if len(title) > 30:
+                title = title[:27] + "..."
+            
+            chat_buttons.append(
+                dbc.Button(
+                    title,
+                    id={'type': 'chat-button', 'index': chat['id']},
+                    color="outline-secondary",
+                    size="sm",
+                    className="mb-2 w-100 text-start",
+                    style={'textAlign': 'left'}
+                )
+            )
+        
+        return chat_buttons
+    
+    except Exception as e:
+        print(f"Error loading chats: {e}")
+        return html.Div("Error loading chats.", className="text-center text-danger")
+
+@callback(
+    [Output('tree-graph-container', 'style', allow_duplicate=True),
+     Output('upload-container', 'style', allow_duplicate=True),
+     Output('tree-graph', 'elements', allow_duplicate=True),
+     Output('tree-data', 'data', allow_duplicate=True),
+     Output('session-data', 'data', allow_duplicate=True),
+     Output('active-chat-data', 'data'),
+     Output('prompt-input', 'value', allow_duplicate=True),
+     Output('suggestion-container', 'style', allow_duplicate=True),
+     Output('selected-image-data', 'data', allow_duplicate=True)],
+    [Input({'type': 'chat-button', 'index': ALL}, 'n_clicks')],
+    [State('app-user-info', 'data')],
+    prevent_initial_call=True
+)
+def load_existing_chat(n_clicks_list, user_info):
+    """Load an existing chat when a chat button is clicked"""
+    if not any(n_clicks_list) or not user_info:
+        raise PreventUpdate
+    
+    ctx_triggered = ctx.triggered[0] if ctx.triggered else None
+    if not ctx_triggered:
+        raise PreventUpdate
+    
+    button_id = json.loads(ctx_triggered['prop_id'].split('.')[0])
+    chat_id = button_id['index']
+    
+    try:
+        user_id = user_info.get('id', 1)
+        
+        db = Database()
+        db.connect()
+        
+        chat_df = db.fetch_chat_by_id(chat_id, pandas=True)
+        if chat_df.empty:
+            db.close()
+            raise PreventUpdate
+        
+        images_df = db.fetch_images_by_chat(chat_id, pandas=True)
+        
+        prompts_df = db.fetch_prompts_by_chat(chat_id, pandas=True)
+        
+        db.close()
+        
+        tree_data = {
+            'nodes': [],
+            'edges': [],
+            'current_node': 'root',
+            'max_level': 0,
+            'selected_node': 'root'
+        }
+        
+        session_data = {
+            'session_id': chat_id,
+            'image_count': len(images_df),
+            'root_image_id': None,
+            'chat_id': chat_id
+        }
+        
+        level_map = {} 
+        parent_map = {}
+        
+        for _, img in images_df.iterrows():
+            img_id = img['id']
+            input_prompt_id = img['input_prompt_id']
+            
+            if input_prompt_id is None:
+                level_map[img_id] = 0
+                parent_map[img_id] = None
+                session_data['root_image_id'] = img_id
+            else:
+                parent_prompt = prompts_df[prompts_df['id'] == input_prompt_id]
+                if not parent_prompt.empty:
+                    parent_image_id = parent_prompt.iloc[0]['image_in_id']
+                    if parent_image_id in level_map:
+                        level_map[img_id] = level_map[parent_image_id] + 1
+                        parent_map[img_id] = parent_image_id
+                    else:
+                        level_map[img_id] = 1
+                        parent_map[img_id] = session_data['root_image_id']
+                else:
+                    level_map[img_id] = 1
+                    parent_map[img_id] = session_data['root_image_id']
+        
+        cy_elements = []
+        node_counter = 0
+        
+        for _, img in images_df.iterrows():
+            img_id = img['id']
+            level = level_map.get(img_id, 0)
+            
+            try:
+                if os.path.exists(img['path']):
+                    from PIL import Image
+                    pil_img = Image.open(img['path'])
+                    buffered = io.BytesIO()
+                    pil_img.save(buffered, format="PNG")
+                    img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+                    img_src = f"data:image/png;base64,{img_str}"
+                else:
+                    img_src = ""
+            except:
+                img_src = ""
+            
+            if level == 0:
+                node_id = 'root'
+                label = 'Original Image'
+            else:
+                node_id = f"node_{node_counter}"
+                node_counter += 1
+                related_prompt = prompts_df[prompts_df['image_in_id'] == parent_map.get(img_id)]
+                if not related_prompt.empty:
+                    prompt_text = related_prompt.iloc[0]['prompt']
+                    label = prompt_text[:15] + '...' if len(prompt_text) > 15 else prompt_text
+                else:
+                    label = f"Image {node_counter}"
+            
+            tree_data['nodes'].append({
+                'id': node_id,
+                'label': label,
+                'image': img_src,
+                'level': level,
+                'image_id': img_id
+            })
+            
+            element = {'data': {
+                'id': node_id,
+                'label': label,
+                'image': img_src,
+                'level': level,
+                'image_id': img_id
+            }}
+            
+            if level == tree_data['max_level']:
+                element['selected'] = (node_id == 'root')
+            else:
+                element['classes'] = 'disabled'
+            
+            cy_elements.append(element)
+            
+            tree_data['max_level'] = max(tree_data['max_level'], level)
+        
+        for _, img in images_df.iterrows():
+            img_id = img['id']
+            parent_id = parent_map.get(img_id)
+            
+            if parent_id is not None:
+                source_node = None
+                target_node = None
+                
+                for node in tree_data['nodes']:
+                    if node['image_id'] == parent_id:
+                        source_node = node['id']
+                    if node['image_id'] == img_id:
+                        target_node = node['id']
+                
+                if source_node and target_node:
+                    edge = {
+                        'id': f"edge_{source_node}_{target_node}",
+                        'source': source_node,
+                        'target': target_node
+                    }
+                    tree_data['edges'].append(edge)
+                    cy_elements.append({'data': edge})
+        
+        active_chat_data = {
+            'chat_id': chat_id,
+            'title': chat_df.iloc[0]['title'],
+            'user_id': user_id
+        }
+        
+        root_image_id = session_data.get('root_image_id')
+        selected_image_data = {
+            'selected_node_id': 'root',
+            'image_id': root_image_id
+        }
+        
+        return (
+            {'display': 'block'},
+            {'display': 'none'}, 
+            cy_elements,
+            tree_data,
+            session_data,
+            active_chat_data,
+            "", 
+            {'display': 'none'},
+            selected_image_data
+        )
+    
+    except Exception as e:
+        print(f"Error loading chat: {e}")
+        raise PreventUpdate
+
+@callback(
+    Output('chat-list-container', 'children', allow_duplicate=True),
+    [Input('new-chat-button', 'n_clicks')],
+    [State('app-user-info', 'data')],
+    prevent_initial_call=True
+)
+def create_new_chat(n_clicks, user_info):
+    """Reset the interface for a new chat"""
+    if not n_clicks or not user_info:
+        raise PreventUpdate
+    
+    return load_user_chats(user_info)
+
+@callback(
+    [Output('tree-graph-container', 'style', allow_duplicate=True),
+     Output('upload-container', 'style', allow_duplicate=True),
+     Output('session-data', 'data', allow_duplicate=True),
+     Output('tree-data', 'data', allow_duplicate=True),
+     Output('active-chat-data', 'data', allow_duplicate=True),
+     Output('prompt-input', 'value', allow_duplicate=True),
+     Output('suggestion-container', 'style', allow_duplicate=True),
+     Output('selected-image-data', 'data', allow_duplicate=True)],
+    [Input('new-chat-button', 'n_clicks')],
+    prevent_initial_call=True
+)
+def reset_for_new_chat(n_clicks):
+    """Reset the interface for a new chat"""
+    if not n_clicks:
+        raise PreventUpdate
+    
+    return (
+        {'display': 'none'}, 
+        {'display': 'block'},
+        {},
+        {},
+        {},
+        "",
+        {'display': 'none'},
+        {}
+    )
+
+@callback(
+    [Output('prompt-guidance-slider', 'disabled'),
+     Output('image-guidance-slider', 'disabled')],
+    [Input('guidance-enable-checkbox', 'value')]
+)
+def toggle_guidance_sliders(enable_guidance):
+    """Enable or disable the guidance sliders based on checkbox state"""
+    return not enable_guidance, not enable_guidance

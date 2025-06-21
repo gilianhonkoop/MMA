@@ -8,9 +8,11 @@ import re
 from PIL import Image
 from typing import List
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from .image_transformer import ImageTransformer
 from .prompt_image import PromptImage
+from .model_instances import get_all_image_transformer_instances
 import random
 
 class Prompt():
@@ -59,7 +61,7 @@ class Prompt():
         random.shuffle(values)
         return values
 
-    def get_new_images(self, image_transformer: ImageTransformer, n=3, save=True):
+    def get_new_images(self, image_transformer: ImageTransformer, n=3, save=True, prompt_guidance=None, image_guidance=None):
         if self.is_enhanced:
             prompt = self.enhanced_prompt
         else:
@@ -67,13 +69,46 @@ class Prompt():
 
         output_images : List[Image.Image] = []
 
-        guidance_scales = self.__get_random_values(n, 1, 15)
-        image_guidance_scales = self.__get_random_values(n, 1, 5)
+        # guidance_scales = self.__get_random_values(n, 1, 15)
+        # image_guidance_scales = self.__get_random_values(n, 1, 5)
 
-        for (pg, ig) in zip(guidance_scales, image_guidance_scales):
-            image = image_transformer.transform(self.get_image(), prompt, guidance_scale=pg, image_guidance_scale=ig)
-            pimage = PromptImage(image, pg, ig, input_prompt=None, output_prompt=self.id, save=save)
-            output_images.append(pimage)
+        if prompt_guidance is not None:
+            if prompt_guidance == 0:  # Low
+                guidance_scales = self.__get_random_values(n, 1, 3)
+            elif prompt_guidance == 1:  # Medium
+                guidance_scales = self.__get_random_values(n, 3, 7)
+            elif prompt_guidance == 2:  # High
+                guidance_scales = self.__get_random_values(n, 7, 15)
+        elif prompt_guidance is None:
+            guidance_scales = self.__get_random_values(n, 1, 15)
+
+
+        if image_guidance is not None:
+            if image_guidance == 0:
+                image_guidance_scales = self.__get_random_values(n, 1, 1.5)
+            elif image_guidance == 1:
+                image_guidance_scales = self.__get_random_values(n, 1.5, 2.5)
+            elif image_guidance == 2:
+                image_guidance_scales = self.__get_random_values(n, 2.5, 5)
+        elif image_guidance is None:
+            image_guidance_scales = self.__get_random_values(n, 1, 5)
+
+        transformers = get_all_image_transformer_instances()
+        
+        def generate_single_image(transformer, input_image_copy, prompt_text, pg, ig):
+            image = transformer.transform(input_image_copy, prompt_text, guidance_scale=pg, image_guidance_scale=ig)
+            return PromptImage(image, pg, ig, input_prompt=None, output_prompt=self.id, save=save)
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = []
+            for i, (pg, ig) in enumerate(zip(guidance_scales, image_guidance_scales)):
+                transformer = transformers[i % 3]  # Cycle through the 3 transformers
+                input_image_copy = self.get_image().copy()
+                futures.append(executor.submit(generate_single_image, transformer, input_image_copy, prompt, pg, ig))
+            
+            for future in as_completed(futures):
+                pimage = future.result()
+                output_images.append(pimage)
 
         self.images_out = output_images
 

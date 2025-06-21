@@ -7,15 +7,14 @@ import sys
 import torch
 import dotenv
 
-from .prompt import Prompt
-
 class VLM():
-    def __init__(self, model="google/gemma-3-4b-it", login_required=True):
+    def __init__(self, model="llava-hf/llava-1.5-7b-hf", login_required=True, device=None):
         if login_required:
             dotenv.load_dotenv()
             login(os.environ.get("HF_TOKEN"))
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if device is None:
+            device = "cuda" if torch.cuda.is_available() else "cpu"
         processor = AutoProcessor.from_pretrained(model, use_fast=True)
 
         self.pipe = pipeline(
@@ -29,7 +28,7 @@ class VLM():
             device=device
         )
 
-    def make_suggestions(self, prompt : Prompt, n_suggestions : int = 3):
+    def make_suggestions(self, prompt, n_suggestions : int = 3):
         format_example = str([f"suggestion {i+1}" for i in range(n_suggestions)])
         suggestion_prompt = (
             f'Based on the attached image and inspired by the concept: "{prompt.get_final_prompt()}", generate {n_suggestions} completely new and different prompt variations. '
@@ -74,35 +73,8 @@ class VLM():
 
         return suggestions
     
-    def extract_keywords(self, prompt: Prompt):
-        """
-        Enhance the prompt by generating a more detailed version based on the input image.
-        """
-        enhancement_prompt = (
-            f'Enhance the following prompt: "{prompt.prompt}". '
-            'Extract the main nouns, verbs, and adjectives from the prompt. Write them as a comma-separated list.'
-            'For example, the prompt: "Turn this into a green rubber duck, pixar style", would yield: "green, rubber duck, pixar style".'
-            'Do not include any explanation or other text.'
-        )
-
-        messages = [
-            {
-                "role": "system",
-                "content": [{"type": "text", "text": f"You are a helpful assistant that enhances image-to-image generation prompts based on user input."}]
-            },
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": enhancement_prompt}
-                ]
-            }
-        ]
-
-        response = self.pipe(messages, max_new_tokens=512)[0]['generated_text'][2]['content']
-        
-        return response
-
-    def enhance_prompt(self, prompt: Prompt):
+    
+    def enhance_prompt(self, prompt):
         """
         Enhance the prompt by generating a more detailed version based on the input image.
         """
