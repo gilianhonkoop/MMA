@@ -17,7 +17,7 @@ pip install -r all_requirements.txt
 
 ### Access compute node
 ```
-srun --partition=gpu_a100 --gpus=1 --ntasks=1 --cpus-per-task=18 --time=00:20:00 --pty bash -i
+srun --partition=gpu_a100 --gpus=4 --ntasks=1 --cpus-per-task=72 --time=00:20:00 --pty bash -i
 ```
 
 ### Run server on Snellius
@@ -30,6 +30,8 @@ python app/main.py
 ```
 ssh -L 8050:127.0.0.1:8050 -J <user>@snellius.surf.nl <user>@<node hostname>
 ```
+
+ssh -L 8050:127.0.0.1:8050 -J scur0279@snellius.surf.nl scur0279@gcn31
 
 After the Dash server is running open http://127.0.0.1:8050/ on your browser.
 
