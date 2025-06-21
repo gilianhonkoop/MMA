@@ -4,6 +4,8 @@ from dash import html, dcc, Input, Output
 import plotly.graph_objs as go
 import numpy as np
 
+from db import Database
+
 app = dash.Dash(__name__)
 server = app.server
 
@@ -177,3 +179,5 @@ def update_tab(tab): return tab
 
 if __name__ == "__main__":
     app.run_server(debug=True)
+
+    db = Database()
