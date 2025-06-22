@@ -1,11 +1,8 @@
 from dash import dcc, html, callback, Input, Output, State, ctx, ALL
-# Bootstrap components for styling
 import dash_bootstrap_components as dbc
-# Cytoscape integration to draw graph/tree visualizations
 import dash_cytoscape as cyto
 import base64
 import io
-# Stops callbacks from updating outputs under certain conditions.
 from dash.exceptions import PreventUpdate
 import uuid
 from PIL import Image
@@ -29,7 +26,7 @@ def create_tree_visualization():
     return cyto.Cytoscape(
         id='tree-graph',
         layout={'name': 'dagre', 'rankDir': 'LR', 'rankSep': 150, 'nodeSep': 100},
-        style={'width': '100%', 'height': '600px'},
+        style={'width': '100%', 'height': '100%'},
         elements=[],
         autoungrabify=True,
         autounselectify=True,
@@ -87,7 +84,7 @@ def create_image_display(id_prefix, title):
 
 # Suggestion Button
 def create_suggestion_button(idx):
-    """ Creates hidden suggestion buttons, which will appear when the user 
+    """ Creates suggestion buttons, which will appear when the user 
     selects a tree node.
     """
     return dbc.Button(
@@ -95,18 +92,18 @@ def create_suggestion_button(idx):
         children="Suggestion",
         color="secondary",
         className="me-2 mb-2",
-        style={'display': 'none'}
+        style={'display': 'none', 'whiteSpace': 'nowrap'}
     )
 
 # Chat Sidebar
 def create_chat_sidebar():
     """Creates a sidebar showing all chats for the logged-in user"""
     return html.Div([
-        html.H5("Your Chats", className="mb-3"),
+        html.H5("Your Chats", className="mb-3", style={'color': 'white'}),
         dbc.Button(
             "New Chat",
             id="new-chat-button",
-            color="primary",
+            style={'backgroundColor': '#FFEED6', 'borderColor': '#FFEED6', 'color': '#38432E'},
             className="mb-3 w-100",
             size="sm"
         ),
@@ -114,152 +111,166 @@ def create_chat_sidebar():
             id="chat-list-container",
             children=[
                 dbc.Spinner(
-                    html.Div("Loading chats...", className="text-center"),
+                    html.Div("Loading chats...", className="text-center", style={'color': 'white'}),
                     size="sm"
                 )
             ],
-            style={'maxHeight': '400px', 'overflowY': 'auto'}
+            style={'height': 'calc(100vh - 260px)', 'overflowY': 'auto'}
         )
     ], style={
-        'backgroundColor': '#f8f9fa',
+        'backgroundColor': '#38432E',
         'padding': '15px',
-        'borderRadius': '5px',
-        'border': '1px solid #dee2e6'
+        'height': 'calc(100vh - 60px)',
+        'position': 'fixed',
+        'left': '0',
+        'top': '60px',
+        'width': '300px',
+        'zIndex': '1000'
     })
 
 # Layout Builder
 def create_user_layout():
-    """Builds the main page layout:
-    Header and image uploader.
-    Hidden tree visualization container.
-    Hidden suggestion button area.
-    Input field for prompts.
-    Submit button (disabled until conditions are met).
-    Several dcc.Store components to hold session state.
-    """
-    return dbc.Container([
-        html.H1("Image Generator Interface", className="my-3"),
+    """Builds the main page layout with full screen utilization"""
+    return html.Div([
+        create_chat_sidebar(),
         
-        dbc.Row([
-            dbc.Col([
-                create_chat_sidebar()
-            ], width=3),
-            dbc.Col([
+        html.Div([
+            html.Div([
+                html.Div(
+                    id="tree-graph-container",
+                    children=create_tree_visualization(),
+                    style={"display": "none", "height": "100%", "backgroundColor": "#FFEED6", "padding": "10px", "width": "100%"}
+                ),
+                
                 html.Div([
-                    html.Div(
-                        id="tree-graph-container",
-                        children=create_tree_visualization(),
-                        style={"display": "none"}
+                    html.H3("Start by uploading an image", className="mb-4 text-center"),
+                    dcc.Upload(
+                        id='image-upload',
+                        children=html.Div([
+                            'Drag and Drop or ',
+                            html.A('Select an Image')
+                        ]),
+                        style={
+                            'width': '100%',
+                            'height': '200px',
+                            'lineHeight': '200px',
+                            'borderWidth': '2px',
+                            'borderStyle': 'dashed',
+                            'borderRadius': '5px',
+                            'textAlign': 'center',
+                            'margin': '20px 0'
+                        },
+                        multiple=False
                     ),
-                    
-                    html.Div([
-                        html.H3("Start by uploading an image", className="mb-4 text-center"),
-                        dcc.Upload(
-                            id='image-upload',
-                            children=html.Div([
-                                'Drag and Drop or ',
-                                html.A('Select an Image')
-                            ]),
-                            style={
-                                'width': '100%',
-                                'height': '200px',
-                                'lineHeight': '200px',
-                                'borderWidth': '2px',
-                                'borderStyle': 'dashed',
-                                'borderRadius': '5px',
-                                'textAlign': 'center',
-                                'margin': '20px 0'
-                            },
-                            multiple=False
-                        ),
-                    ], id="upload-container"),
-                ], className="mb-4"),
-            ], width=9),
-        ]),
-        
-        dbc.Row([
-            dbc.Col(
+                ], id="upload-container", style={"backgroundColor": "#FFEED6", "padding": "20px", "height": "100%", "display": "flex", "flexDirection": "column", "justifyContent": "center"}),
+            ], style={"flex": "1", "backgroundColor": "#FFEED6", "minHeight": "0", "overflow": "hidden"}),
+            
+            html.Div([
                 html.Div([
-                    create_suggestion_button(1),
-                    create_suggestion_button(2),
-                    create_suggestion_button(3),
-                ], id='suggestion-container', style={'display': 'none'}),
-            width=12, className="text-center mb-3")
-        ]),
-        
-        dbc.Row([
-            dbc.Col([
+                    html.Div([
+                        create_suggestion_button(1),
+                        create_suggestion_button(2),
+                        create_suggestion_button(3),
+                    ], style={
+                        'display': 'flex',
+                        'gap': '10px',
+                        'overflowX': 'auto',
+                        'whiteSpace': 'nowrap',
+                        'padding': '5px 0'
+                    })
+                ], id='suggestion-container', style={
+                    'display': 'none',
+                    'backgroundColor': '#F5F5F5',
+                    'border': '1px solid #ddd',
+                    'borderRadius': '5px',
+                    'padding': '8px 12px',
+                    'marginBottom': '15px',
+                    'maxHeight': '60px',
+                    'overflowY': 'hidden'
+                }),
+                
+                # Input and controls
                 dbc.InputGroup([
                     dbc.Input(id='prompt-input', placeholder="Enter your prompt here...", type="text"),
                     dbc.InputGroupText(
                         dbc.Checkbox(
                             id='ai-enhancement-checkbox',
-                            label="Use AI",
+                            label="AI-Enhance prompt",
                             value=False,
                         )
                     ),
-                    dbc.Button("Generate Images", id="submit-button", color="primary", disabled=True),
+                    dbc.Button("Generate Images", id="submit-button", disabled=True, 
+                              style={'backgroundColor': '#38432E', 'borderColor': '#38432E', 'color': 'white'}),
                 ], className="mb-3"),
                 
                 # Guidance controls
-                dbc.Row([
-                    dbc.Col([
+                html.Div([
+                    html.Div([
                         dbc.Checkbox(
                             id='guidance-enable-checkbox',
                             label="Enable Custom Guidance Settings",
                             value=False,
-                            className="mb-3"
-                        )
-                    ], width=12)
+                        ),
+                        
+                        html.Div([
+                            html.Label("Prompt Guidance", className="mb-1", style={'fontSize': '12px'}),
+                            dcc.Slider(
+                                id='prompt-guidance-slider',
+                                min=0,
+                                max=2,
+                                step=1,
+                                value=1,
+                                marks={
+                                    0: 'Low',
+                                    1: 'Medium',
+                                    2: 'High'
+                                },
+                                tooltip={"placement": "bottom", "always_visible": False},
+                                disabled=True,
+                            )
+                        ], style={'marginLeft': '20px', 'marginRight': '20px', 'flex': '1', 'maxWidth': '200px'}),
+                        
+                        html.Div([
+                            html.Label("Image Guidance", className="mb-1", style={'fontSize': '12px'}),
+                            dcc.Slider(
+                                id='image-guidance-slider',
+                                min=0,
+                                max=2,
+                                step=1,
+                                value=1,
+                                marks={
+                                    0: 'Low',
+                                    1: 'Medium',
+                                    2: 'High'
+                                },
+                                tooltip={"placement": "bottom", "always_visible": False},
+                                disabled=True,
+                            )
+                        ], style={'marginRight': '20px', 'flex': '1', 'maxWidth': '200px'}),
+                    ], style={'display': 'flex', 'alignItems': 'center', 'marginBottom': '15px'})
                 ]),
                 
-                dbc.Row([
-                    dbc.Col([
-                        html.Label("Prompt Guidance", className="mb-1"),
-                        dcc.Slider(
-                            id='prompt-guidance-slider',
-                            min=0,
-                            max=2,
-                            step=1,
-                            value=1,
-                            marks={
-                                0: 'Low',
-                                1: 'Medium',
-                                2: 'High'
-                            },
-                            tooltip={"placement": "bottom", "always_visible": True},
-                            disabled=True
-                        )
-                    ], width=6),
-                    dbc.Col([
-                        html.Label("Image Guidance", className="mb-1"),
-                        dcc.Slider(
-                            id='image-guidance-slider',
-                            min=0,
-                            max=2,
-                            step=1,
-                            value=1,
-                            marks={
-                                0: 'Low',
-                                1: 'Medium',
-                                2: 'High'
-                            },
-                            tooltip={"placement": "bottom", "always_visible": True},
-                            disabled=True
-                        )
-                    ], width=6),
-                ], className="mb-3"),
-                
                 dbc.Spinner(html.Div(id="loading-output")),
-            ], width={"size": 10, "offset": 1}),
-        ]),
+            ], style={
+                "backgroundColor": "#FFEED6", 
+                "padding": "20px", 
+                "minHeight": "180px",
+                "borderTop": "1px solid #ccc",
+                "flexShrink": "0",
+            }),
+        ], style={
+            "marginLeft": "300px",
+            "height": "calc(100vh - 60px)",
+            "display": "flex",
+            "flexDirection": "column"
+        }),
         
         dcc.Store(id='session-data'),
         dcc.Store(id='tree-data'),
         dcc.Store(id='selected-image-data'),
         dcc.Store(id='original-image-store'),
         dcc.Store(id='active-chat-data'),
-    ])
+    ], style={"height": "100vh", "overflow": "hidden"})
 
 @callback(
     Output('submit-button', 'disabled'),
@@ -356,7 +367,7 @@ def process_uploaded_image(contents, user_info):
     db.close()
     
     return (
-        {'display': 'block'}, 
+        {'display': 'block', 'height': '100%', 'backgroundColor': '#FFEED6', 'padding': '10px', 'width': '100%'}, 
         {'display': 'none'},
         contents,
         cy_elements,
@@ -921,7 +932,7 @@ def load_existing_chat(n_clicks_list, user_info):
         }
         
         return (
-            {'display': 'block'},
+            {'display': 'block', 'height': '100%', 'backgroundColor': '#FFEED6', 'padding': '10px', 'width': '100%'},
             {'display': 'none'}, 
             cy_elements,
             tree_data,

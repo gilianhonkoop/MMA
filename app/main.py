@@ -21,9 +21,9 @@ app = dash.Dash(__name__,
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
     dcc.Store(id="app-user-info", storage_type="session", data=None),
-    html.Div(id='navbar-container'),
-    html.Div(id='page-content')
-])
+    html.Div(id='navbar-container', style={'position': 'fixed', 'top': '0', 'left': '0', 'right': '0', 'zIndex': '999', 'height': '60px', 'backgroundColor': '#38432E'}),
+    html.Div(id='page-content', style={'paddingTop': '60px'})
+], style={'height': '100vh', 'overflow': 'hidden'})
 
 @callback(
     Output('navbar-container', 'children'),
@@ -31,19 +31,15 @@ app.layout = html.Div([
 )
 def update_navbar(user_info):
     if user_info:
-        return html.Div([
-            dbc.NavbarSimple(
-                children=[
-                    dbc.NavItem(dbc.NavLink("User Interface", href="/")),
-                    dbc.NavItem(dbc.NavLink("Admin Dashboard", href="/admin")),
-                    dbc.NavItem(dbc.NavLink(f"Logged in as {user_info.get('username')}", href="#")),
-                    dbc.NavItem(dbc.NavLink("Logout", href="/logout", id="logout-link")),
-                ],
-                brand="Image Generator",
-                color="primary",
-                dark=True,
-            ),
-        ])
+        return dbc.Navbar([
+            dbc.NavbarBrand("Image Generator", className="me-auto"),
+            dbc.Nav([
+                dbc.NavItem(dbc.NavLink("Home", href="/")),
+                dbc.NavItem(dbc.NavLink("Statistics", href="/admin")),
+                dbc.NavItem(dbc.NavLink(f"Logged in as {user_info.get('username')}", href="#")),
+                dbc.NavItem(dbc.NavLink("Logout", href="/logout", id="logout-link")),
+            ], className="ms-auto", navbar=True)
+        ], color='#38432E', dark=True, style={'backgroundColor': '#38432E', 'borderColor': '#38432E', 'height': '100%', 'margin': '0', 'borderRadius': '0', 'paddingLeft': '20px', 'paddingRight': '20px'})
     return html.Div()
 
 @callback(
