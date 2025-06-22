@@ -3,11 +3,11 @@ from dash import dcc, html, callback, Input, Output, State, ctx, ALL
 import dash_bootstrap_components as dbc
 # Cytoscape integration to draw graph/tree visualizations
 import dash_cytoscape as cyto
+import base64
+import io
 # Stops callbacks from updating outputs under certain conditions.
 from dash.exceptions import PreventUpdate
 import uuid
-import base64
-import io
 from PIL import Image
 import os
 import sys
@@ -316,36 +316,21 @@ def process_uploaded_image(contents, user_info):
     if contents is None:
         raise PreventUpdate
     
-    # Parse the Base64 string
     content_type, content_string = contents.split(',')
     decoded = base64.b64decode(content_string)
-    
-    # Convert to PIL Image
     img = Image.open(io.BytesIO(decoded))
-    
-    # Get user ID from session or default to 1
-    user_id = user_info.get('id', 1) if user_info else 1
-    
-    # Initialize a database connection
+    user_id = user_info.get('user_id', 1) if user_info else 1
     db = Database()
     db.connect()
     
-    # Create a unique session ID for the chat
     chat_title = f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-    
-    # Create a Chat object
     chat = Chat(user_id=user_id, title=chat_title)
     
-    # Save the chat to the database
     db_chat_id = db.insert_chat(chat.title, user_id)
-    
-    # Create initial PromptImage (input)
     prompt_image = PromptImage(img, None, None, input_prompt=None, output_prompt=None, save=True)
     
-    # Save image to database
     db.save_image(prompt_image, db_chat_id, user_id)
     
-    # Store session data
     session_data = {
         'session_id': db_chat_id,
         'image_count': 1,
@@ -402,10 +387,10 @@ def generate_images(n_clicks, image_src, prompt_text, use_ai, guidance_enabled, 
     Image source, Prompt, AI enhancement option, Current session and tree state
     Generates images using ImageTransformer and adds them to the tree
     """
-    if n_clicks is None or image_src is None or not prompt_text:
+    if n_clicks is None or not prompt_text:
         raise PreventUpdate
     
-    user_id = user_info.get('id', 1) if user_info else 1
+    user_id = user_info.get('user_id', 1) if user_info else 1
     chat_id = session_data.get('chat_id')
     
     db = Database()
@@ -722,7 +707,7 @@ def load_user_chats(user_info):
         return html.Div("Please log in to view your chats.", className="text-center text-muted")
     
     try:
-        user_id = user_info.get('id', 1)
+        user_id = user_info.get('user_id', 1)
         
         db = Database()
         db.connect()
@@ -783,7 +768,7 @@ def load_existing_chat(n_clicks_list, user_info):
     chat_id = button_id['index']
     
     try:
-        user_id = user_info.get('id', 1)
+        user_id = user_info.get('user_id', 1)
         
         db = Database()
         db.connect()
