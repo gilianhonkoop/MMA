@@ -323,7 +323,10 @@ def process_uploaded_image(contents, user_info):
     db = Database()
     db.connect()
     
-    chat_title = f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    vlm = get_vlm_instance()
+    chat_title = vlm.create_title(img)
+
+    # chat_title = f"Chat {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     chat = Chat(user_id=user_id, title=chat_title)
     
     db_chat_id = db.insert_chat(chat.title, user_id)

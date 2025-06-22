@@ -28,6 +28,35 @@ class VLM():
             device=device
         )
 
+
+    def create_title(self, image):
+        """
+        Generate a title for the given image.
+        """
+        title_prompt = (
+            'Generate a concise and descriptive title for the attached image. '
+            'The title should capture the essence of the image in a few words, without any additional explanation or text.'
+        )
+
+        messages = [
+            {
+                "role": "system",
+                "content": [{"type": "text", "text": f"You are a helpful assistant that generates titles for images."}]
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": image},
+                    {"type": "text", "text": title_prompt}
+                ]
+            }
+        ]
+
+        response = self.pipe(messages, max_new_tokens=64)[0]['generated_text'][2]['content']
+        
+        return response.strip()
+
+
     def make_suggestions(self, prompt, n_suggestions : int = 3):
         format_example = str([f"suggestion {i+1}" for i in range(n_suggestions)])
         suggestion_prompt = (
