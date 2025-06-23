@@ -4,8 +4,10 @@ from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from layouts.user_page import create_user_layout
-# from layouts.admin_page import create_admin_layout
-from layouts.draft_admin_page import create_admin_layout
+# try running the admin page, idk if it works
+from layouts.admin_page import create_admin_layout
+# the draft one works, we already know
+# from layouts.draft_admin_page import create_admin_layout
 from layouts.login_page import create_login_layout
 
 from modules.model_instances import init_models

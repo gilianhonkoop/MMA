@@ -1,3 +1,45 @@
+# import dash
+# from dash import html, dcc, Input, Output, callback, State
+# import plotly.graph_objects as go
+# import pandas as pd
+# import numpy as np
+# from wordcloud import WordCloud
+# import base64
+# import io
+# import os
+# import dash_bootstrap_components as dbc
+# from dash.exceptions import PreventUpdate
+# from matplotlib import cm
+# from sklearn.feature_extraction.text import TfidfVectorizer
+# from db.database import Database
+
+# def create_admin_layout():
+#     return dbc.Container([
+#         dbc.Button("Refresh", id="refresh-button", color="primary", className="mb-3"),
+#         dcc.Dropdown(id="chat-selector", placeholder="Select a Chat", className="mb-3"),
+#         dcc.Graph(id={'type': 'graph', 'index': 'model-parameters'}),
+#         dcc.Graph(id={'type': 'graph', 'index': 'bert-lpips-amplitude'}),
+#         dcc.Graph(id={'type': 'graph', 'index': 'functionality-usage-rate'}),
+
+#         dbc.Row([
+#             dbc.Col(dcc.RadioItems(
+#                 id="wordcloud-mode",
+#                 options=[
+#                     {"label": "Raw Frequency", "value": "frequency"},
+#                     {"label": "Color by Depth", "value": "depth"},
+#                     {"label": "TF-IDF", "value": "tfidf"}
+#                 ],
+#                 value="frequency",
+#                 inline=True,
+#                 labelStyle={"marginRight": "15px"}
+#             ), width=12),
+#             dbc.Col(html.Img(id={'type': 'graph', 'index': 'keywords-evolution'}, style={'width': '100%', 'height': 'auto'}), width=12),
+#             dbc.Col(dcc.Graph(id="depth-legend", style={"display": "none", "height": "60px"}), width=12),
+#         ]),
+
+#         dcc.Store(id='dashboard-data'),
+#     ])
+
 import dash
 from dash import html, dcc, Input, Output, callback, State
 import plotly.graph_objects as go
@@ -7,131 +49,267 @@ from wordcloud import WordCloud
 import base64
 import io
 import os
+import dash_bootstrap_components as dbc
+from dash.exceptions import PreventUpdate
+from matplotlib import cm
+from sklearn.feature_extraction.text import TfidfVectorizer
 from db.database import Database
 
-app = dash.Dash(__name__)
-server = app.server
+def create_admin_layout():
+    return dbc.Container([
+        dbc.Row([
+            dbc.Col([
+                dbc.Button("Refresh", id="refresh-button", color="primary", className="mb-3"),
+                dcc.Dropdown(id="chat-selector", placeholder="Select a Chat", className="mb-3"),
+                dcc.RadioItems(
+                    id="wordcloud-mode",
+                    options=[
+                        {"label": "Raw Frequency", "value": "frequency"},
+                        {"label": "Color by Depth", "value": "depth"},
+                        {"label": "TF-IDF", "value": "tfidf"}
+                    ],
+                    value="frequency",
+                    inline=True,
+                    labelStyle={"marginRight": "15px"},
+                    className="mb-3"
+                ),
+            ], width=4),
 
-# === Constants for styling ===
-BG = "#FFEED6"
-GREEN = "#38432E"
-G_HEIGHT = 260
+            dbc.Col([
+                dcc.Graph(id={'type': 'graph', 'index': 'model-parameters'}, config={'displayModeBar': False}, style={"height": "280px"}),
+                dcc.Graph(id={'type': 'graph', 'index': 'bert-lpips-amplitude'}, config={'displayModeBar': False}, style={"height": "280px"})
+            ], width=4),
 
-# === Utility to generate word cloud image from list of words ===
-def generate_wordcloud(words):
-    if not words:
-        return None
-    text = " ".join(words)
-    wc = WordCloud(width=400, height=200, background_color=BG, colormap="Dark2").generate(text)
-    buffer = io.BytesIO()
-    wc.to_image().save(buffer, format="PNG")
-    img_str = base64.b64encode(buffer.getvalue()).decode()
-    return f"data:image/png;base64,{img_str}"
+            dbc.Col([
+                dcc.Graph(id={'type': 'graph', 'index': 'functionality-usage-rate'}, config={'displayModeBar': False}, style={"height": "280px"}),
+                html.Img(id={'type': 'graph', 'index': 'keywords-evolution'}, style={'width': '100%', 'height': 'auto'}),
+                dcc.Graph(id="depth-legend", style={"display": "none", "height": "60px"})
+            ], width=4)
+        ], className="gy-3"),
 
-# === Layout ===
-app.layout = html.Div([
-    html.Div(style={"backgroundColor": GREEN, "color": "white", "padding": "16px 20px"}, children=[
-        html.Span("AI-D", style={"fontWeight": "bold", "fontSize": "26px", "marginRight": "10px"}),
-        html.Span("|", style={"margin": "0 10px"}),
-        html.Span("User Dashboard", style={"fontStyle": "italic", "fontSize": "22px"})
-    ]),
-    html.Div(style={"padding": "12px 20px"}, children=[
-        dcc.Input(id="user-id", type="number", placeholder="Enter User ID", style={"marginRight": "10px"}),
-        html.Button("Load Dashboard", id="load-button"),
-    ]),
-    dcc.Store(id="user-data"),
-    html.Div(id="dashboard-content")
-])
+        dcc.Store(id='dashboard-data')
+    ], fluid=True)
 
-# === Callbacks ===
 @callback(
-    Output("user-data", "data"),
-    Input("load-button", "n_clicks"),
-    State("user-id", "value")
+    [Output('dashboard-data', 'data'),
+     Output('chat-selector', 'options')],
+    Input('refresh-button', 'n_clicks'),
+    State('app-user-info', 'data'),
+    prevent_initial_call=True
 )
-def fetch_user_data(n_clicks, user_id):
-    if not n_clicks or not user_id:
-        return dash.no_update
+def update_dashboard_data(n_clicks, user_info):
+    if n_clicks is None or not user_info:
+        raise PreventUpdate
+
+    user_id = user_info.get("user_id")
+    if user_id is None:
+        raise PreventUpdate
 
     with Database() as db:
-        df = db.fetch_user_dashboard_data(user_id)
-    return df.to_dict("records")
+        chats = db.fetch_chats_by_user(user_id)
+
+    chat_options = [
+        {"label": f"{row['title']} (ID {row['id']})", "value": row["id"]}
+        for _, row in chats.iterrows()
+    ]
+
+    return {"data_loaded": True}, chat_options
 
 @callback(
-    Output("dashboard-content", "children"),
-    Input("user-data", "data")
+    Output({'type': 'graph', 'index': 'model-parameters'}, 'figure'),
+    Input('chat-selector', 'value'),
+    prevent_initial_call=True
 )
-def render_dashboard(data):
-    if not data:
-        return dash.no_update
+def update_guidance_plot(chat_id):
+    if chat_id is None:
+        raise PreventUpdate
 
-    df = pd.DataFrame(data)
+    with Database() as db:
+        df = db.fetch_all_guidance_metrics()
 
-    # === Plot 1: Guidance vs Depth ===
-    fig1 = go.Figure()
-    fig1.add_trace(go.Scatter(x=df['depth'], y=df['prompt_guidance'], mode='lines+markers', name='Prompt Guidance'))
-    fig1.add_trace(go.Scatter(x=df['depth'], y=df['image_guidance'], mode='lines+markers', name='Image Guidance'))
-    fig1.update_layout(
-        title="Guidance vs Prompt Depth",
-        height=G_HEIGHT,
-        font=dict(family="sans-serif", size=13),
-        paper_bgcolor=BG, plot_bgcolor=BG,
-        margin=dict(t=50, b=30, l=40, r=40),
-        xaxis_title="Depth", yaxis_title="Guidance"
-    )
+    df = df[df['chat_id'] == chat_id].sort_values(by='depth')
 
-    # === Plot 2: Bertscore & LPIPS vs Depth ===
-    fig2 = go.Figure()
-    if 'bert_novelty' in df.columns:
-        fig2.add_trace(go.Scatter(x=df['depth'], y=df['bert_novelty'], mode='lines+markers', name='1 - BERTScore'))
-    if 'lpips' in df.columns:
-        fig2.add_trace(go.Scatter(x=df['depth'], y=df['lpips'], mode='lines+markers', name='LPIPS'))
-    fig2.update_layout(
-        title="Prompt and Image Novelty vs Depth",
-        height=G_HEIGHT,
-        font=dict(family="sans-serif", size=13),
-        paper_bgcolor=BG, plot_bgcolor=BG,
-        margin=dict(t=50, b=30, l=40, r=40),
-        xaxis_title="Depth", yaxis_title="Score"
-    )
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=df['depth'], y=df['prompt_guidance'], mode='lines+markers', name='Prompt Guidance'))
+    fig.add_trace(go.Scatter(x=df['depth'], y=df['image_guidance'], mode='lines+markers', name='Image Guidance'))
+    fig.update_layout(title="Prompt and Image Guidance over Generations", xaxis_title="Generation", yaxis_title="Guidance Value")
 
-    # === Plot 3: Pie chart of Functionality ===
-    func_counts = {
-        "Suggestions": df['used_suggestion'].sum(),
-        "Enhancement": df['is_enhanced'].sum(),
-        "Suggestions & Enhancement": ((df['used_suggestion']) & (df['is_enhanced'])).sum(),
-        "No AI": ((~df['used_suggestion']) & (~df['is_enhanced'])).sum()
-    }
-    fig3 = go.Figure(go.Pie(labels=list(func_counts.keys()), values=list(func_counts.values()),
-                            marker_colors=["#7B002C", "#00008B", "#8B4513", "#006400"], textinfo="label+percent"))
-    fig3.update_layout(
-        title="Functionality Usage",
-        height=G_HEIGHT,
-        font=dict(family="sans-serif", size=13),
-        paper_bgcolor=BG, plot_bgcolor=BG,
-        margin=dict(t=50, b=30, l=40, r=40),
-        showlegend=False
-    )
+    return fig
 
-    # === Plot 4: Word Cloud from Relevant Words ===
-    all_words = []
-    if 'relevant_words' in df.columns:
-        for words in df['relevant_words'].dropna():
-            all_words.extend(words.split(","))
+@callback(
+    Output({'type': 'graph', 'index': 'bert-lpips-amplitude'}, 'figure'),
+    Input('chat-selector', 'value'),
+    prevent_initial_call=True
+)
+def update_novelty_amplitude(chat_id):
+    if chat_id is None:
+        raise PreventUpdate
 
-    wordcloud_img = generate_wordcloud(all_words)
-    wordcloud_fig = html.Img(src=wordcloud_img, style={"width": "100%"}) if wordcloud_img else html.Div("No keywords to display")
+    with Database() as db:
+        bert_df = db.fetch_all_bertscore_metrics()
+        lpips_df = db.fetch_all_lpips_metrics()
 
-    return html.Div([
-        html.Div(style={"display": "flex"}, children=[
-            html.Div(dcc.Graph(figure=fig1), style={"width": "50%"}),
-            html.Div(dcc.Graph(figure=fig2), style={"width": "50%"})
-        ]),
-        html.Div(style={"display": "flex"}, children=[
-            html.Div(dcc.Graph(figure=fig3), style={"width": "50%"}),
-            html.Div(wordcloud_fig, style={"width": "50%", "padding": "10px"})
-        ])
+    bert_df = bert_df[bert_df['chat_id'] == chat_id].sort_values(by='depth')
+    lpips_df = lpips_df[lpips_df['chat_id'] == chat_id].sort_values(by='depth')
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=bert_df['depth'], y=bert_df['bert_novelty'], mode='lines+markers', name='BERT Novelty'))
+    fig.add_trace(go.Scatter(x=lpips_df['depth'], y=lpips_df['lpips'], mode='lines+markers', name='LPIPS'))
+    fig.update_layout(title="Prompt Novelty and Image Change Amplitude", xaxis_title="Generation", yaxis_title="Value")
+
+    return fig
+
+@callback(
+    Output({'type': 'graph', 'index': 'functionality-usage-rate'}, 'figure'),
+    Input('chat-selector', 'value'),
+    prevent_initial_call=True
+)
+def update_functionality_usage(chat_id):
+    if chat_id is None:
+        raise PreventUpdate
+
+    with Database() as db:
+        df = db.fetch_all_functionality_metrics()
+
+    df = df[df['chat_id'] == chat_id]
+    if df.empty:
+        raise PreventUpdate
+
+    avg_vals = df[['used_suggestion_pct', 'used_enhancement_pct', 'used_both_pct', 'no_ai_pct']].mean()
+
+    fig = go.Figure(data=[
+        go.Pie(
+            labels=avg_vals.index,
+            values=avg_vals.values,
+            hole=0.4,
+            textinfo='label+percent'
+        )
     ])
+    fig.update_layout(title="Functionality Usage Rate (%)")
 
-if __name__ == '__main__':
-    app.run_server(debug=True)
+    return fig
+
+@callback(
+    Output({'type': 'graph', 'index': 'keywords-evolution'}, 'src'),
+    Input('chat-selector', 'value'),
+    Input('wordcloud-mode', 'value'),
+    prevent_initial_call=True
+)
+def update_keywords_wordcloud(chat_id, mode):
+    if chat_id is None:
+        raise PreventUpdate
+
+    with Database() as db:
+        df = db.fetch_all_prompt_word_metrics()
+    df = df[df['chat_id'] == chat_id].dropna(subset=['relevant_words', 'depth'])
+    # If any row contains an unexpected format (e.g., not a string), this will raise an error. 
+    # need to run to check if error is raised
+    df['relevant_words'] = df['relevant_words'].apply(lambda s: s.split(','))
+
+    if df.empty:
+        raise PreventUpdate
+
+    # RAW FREQUENCY: most common words regardless of time
+    if mode == 'frequency':
+        all_words = pd.Series([w for words in df['relevant_words'] for w in words])
+        word_freq = all_words.value_counts().to_dict()
+        wc = WordCloud(width=800, height=400, background_color="white").generate_from_frequencies(word_freq)
+
+    # COLOR BY DEPTH:  words colored based on when they appeared
+    elif mode == 'depth':
+        word_depths = {}
+        word_counts = {}
+        for _, row in df.iterrows():
+            for word in row['relevant_words']:
+                word_depths[word] = word_depths.get(word, 0) + row['depth']
+                word_counts[word] = word_counts.get(word, 0) + 1
+        avg_depths = {w: word_depths[w] / word_counts[w] for w in word_depths}
+        word_freq = word_counts
+
+        def get_color_func(avg_depths):
+            min_d, max_d = min(avg_depths.values()), max(avg_depths.values())
+            colormap = cm.get_cmap('coolwarm')
+            def color_func(word, **kwargs):
+                norm = (avg_depths.get(word, min_d) - min_d) / (max_d - min_d + 1e-5)
+                r, g, b, _ = [int(c * 255) for c in colormap(norm)]
+                return f"rgb({r},{g},{b})"
+            return color_func
+
+        wc = WordCloud(width=800, height=400, background_color="white").generate_from_frequencies(word_freq)
+        wc.recolor(color_func=get_color_func(avg_depths))
+
+    # TF-IDF: what makes this chat lexically unique
+    elif mode == 'tfidf':
+        with Database() as db:
+            all_df = db.fetch_all_prompt_word_metrics()
+        all_df = all_df.dropna(subset=['relevant_words'])
+        all_df['relevant_words'] = all_df['relevant_words'].apply(lambda s: s.split(','))
+        chats_grouped = all_df.groupby('chat_id')['relevant_words'].apply(lambda lst: [" ".join(words) for words in lst])
+        chat_docs = chats_grouped.apply(lambda lst: " ".join(lst)).tolist()
+        chat_ids = chats_grouped.index.tolist()
+
+        vectorizer = TfidfVectorizer()
+        tfidf_matrix = vectorizer.fit_transform(chat_docs)
+
+        if chat_id in chat_ids:
+            chat_idx = chat_ids.index(chat_id)
+            words = vectorizer.get_feature_names_out()
+            scores = tfidf_matrix[chat_idx].toarray().flatten()
+            tfidf_scores = {word: scores[i] for i, word in enumerate(words) if scores[i] > 0}
+            wc = WordCloud(width=800, height=400, background_color="white").generate_from_frequencies(tfidf_scores)
+        else:
+            raise PreventUpdate
+
+    else:
+        raise PreventUpdate
+
+    img_buffer = io.BytesIO()
+    wc.to_image().save(img_buffer, format="PNG")
+    encoded_image = base64.b64encode(img_buffer.getvalue()).decode()
+
+    return f"data:image/png;base64,{encoded_image}"
+
+@callback(
+    Output("depth-legend", "figure"),
+    Output("depth-legend", "style"),
+    Input("wordcloud-mode", "value"),
+    Input("chat-selector", "value"),
+    prevent_initial_call=True
+)
+def update_legend(mode, chat_id):
+    if mode != "depth" or chat_id is None:
+        return {}, {"display": "none"}
+
+    with Database() as db:
+        df = db.fetch_all_prompt_word_metrics()
+    df = df[df['chat_id'] == chat_id]
+    if df.empty or 'depth' not in df.columns:
+        return {}, {"display": "none"}
+
+    min_d = int(df['depth'].min())
+    max_d = int(df['depth'].max())
+
+    fig = go.Figure(go.Heatmap(
+        z=[[min_d, max_d]],
+        colorscale="coolwarm",
+        showscale=True,
+        colorbar=dict(
+            orientation="h",
+            title="Generation Depth",
+            titleside="top",
+            xanchor="center",
+            x=0.5,
+            tickmode='array',
+            tickvals=[min_d, max_d],
+            ticktext=[f"Early ({min_d})", f"Late ({max_d})"]
+        )
+    ))
+
+    fig.update_layout(
+        margin=dict(l=0, r=0, t=20, b=0),
+        xaxis=dict(visible=False),
+        yaxis=dict(visible=False),
+        height=60
+    )
+
+    return fig, {"display": "block", "height": "60px"}
