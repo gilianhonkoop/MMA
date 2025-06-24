@@ -341,7 +341,7 @@ def process_uploaded_image(contents, user_info):
     chat = Chat(user_id=user_id, title=chat_title)
     
     db_chat_id = db.insert_chat(chat.title, user_id)
-    prompt_image = PromptImage(img, None, None, input_prompt=None, output_prompt=None, save=True)
+    prompt_image = PromptImage(img, None, None, input_prompt=None, output_prompt=None, save=True, selected=True)
     
     db.save_image(prompt_image, db_chat_id, user_id)
     
