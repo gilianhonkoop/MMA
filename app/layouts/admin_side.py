@@ -571,8 +571,14 @@ def line_chart_change_amplitude(chat_id):
         bert_df = db.fetch_all_bertscore_metrics()
         lpips_df = db.fetch_all_lpips_metrics()
 
-    bert_df = bert_df[bert_df['chat_id'] == chat_id].sort_values(by='depth')
-    lpips_df = lpips_df[lpips_df['chat_id'] == chat_id].sort_values(by='depth')
+    # Only keep depth >= 2
+    # since depth = 1 corresponds to the initial prompt and image, metrics like
+    # bert_novelty and lpips (which are comparative) aren't meaningful at that point.
+    # bert_df = bert_df[bert_df['chat_id'] == chat_id].sort_values(by='depth')
+    # lpips_df = lpips_df[lpips_df['chat_id'] == chat_id].sort_values(by='depth')
+    bert_df = bert_df[(bert_df['chat_id'] == chat_id) & (bert_df['depth'] > 1)].sort_values(by='depth')
+    lpips_df = lpips_df[(lpips_df['chat_id'] == chat_id) & (lpips_df['depth'] > 1)].sort_values(by='depth')
+
 
     fig = go.Figure()
     fig.add_trace(
@@ -602,7 +608,7 @@ def line_chart_change_amplitude(chat_id):
                 xaxis=dict(
                     title="Generation",
                     tickmode="linear",
-                    tick0=1,
+                    tick0=2,
                     dtick=1
                 ),
                 yaxis_title="Value",  
