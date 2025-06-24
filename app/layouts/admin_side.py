@@ -1,5 +1,5 @@
 import dash
-from dash import html, dcc, Input, Output
+from dash import html, dcc, Input, Output, callback, State
 from dash.dependencies import Input, Output, ALL, MATCH
 import plotly.graph_objs as go
 import dash_bootstrap_components as dbc
@@ -13,6 +13,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 import base64
 import io
 
+# app = dash.Dash(__name__)
+# server = app.server
 
 # theme colours 
 BG = "#FFEED6"
@@ -29,97 +31,97 @@ static_bar_chart = go.Figure()
 
 def create_admin_layout():
     return html.Div([
-            dcc.Store(id="insight-tab-store", data="overall"),
-            # Top header
-            html.Div(
-                style={"backgroundColor": GREEN, "color": "white", "width": "100%", "padding": "50px 0px 50px 30px"},
-                children=[
-                    html.Span("AI-D", style={"fontWeight": "bold", "fontSize": "35px", "marginRight": "10px"}),
-                    html.Span("|", style={"margin": "0 10px", "fontSize": "35px"}),
-                    html.Span(" Developer", style={"fontStyle": "italic", "fontSize": "28px"})
-                ]
-            ),
-            html.Div(style={"display": "flex", "padding": "30px 50px 0 30px", "marginBottom": "20px"}, children=[
-                # Column 1: Dialogue history
+        dcc.Store(id="insight-tab-store", data="overall"),
+        # Top header
+        html.Div(
+            style={"backgroundColor": GREEN, "color": "white", "width": "100%", "padding": "50px 0px 50px 30px"},
+            children=[
+                html.Span("AI-D", style={"fontWeight": "bold", "fontSize": "35px", "marginRight": "10px"}),
+                html.Span("|", style={"margin": "0 10px", "fontSize": "35px"}),
+                html.Span(" Developer", style={"fontStyle": "italic", "fontSize": "28px"})
+            ]
+        ),
+        html.Div(style={"display": "flex", "padding": "30px 50px 0 30px", "marginBottom": "20px"}, children=[
+            # Column 1: Dialogue history
+            html.Div([
+                html.Div("Dialogue history", style={"fontSize": "30px", "fontWeight": "600", "color": GREEN}),
+                # History drop-down 
+                dbc.Button("Refresh", id="refresh-button", color="primary", className="mb-3", style={"marginTop": "10px"}),
+                dcc.Dropdown(id="chat-selector", placeholder="Select a Chat", className="mb-3", style={"marginTop": "5px"})
+            ], style={"width": "20%"}),
+            # Column 2: Dialogue performance label
+            html.Div([
+                html.Div("Dialogue", style={"fontSize": "30px", "fontWeight": "600", "color": GREEN}),
+                # Wordcloud settings 
+                dcc.RadioItems(
+                        id="wordcloud-mode",
+                        options=[
+                            {"label": "Raw Frequency", "value": "frequency"},
+                            {"label": "Color by Depth", "value": "depth"},
+                            {"label": "TF-IDF", "value": "tfidf"}
+                        ],
+                        value="frequency",
+                        inline=True,
+                        labelStyle={"marginRight": "15px"},
+                        className="mb-3", 
+                        style={"marginTop": "10px"}
+                ),
+                # TO ADD: 
                 html.Div([
-                    html.Div("Dialogue history", style={"fontSize": "30px", "fontWeight": "600", "color": GREEN}),
-                    # History drop-down 
-                    dbc.Button("Refresh", id="refresh-button", color="primary", className="mb-3", style={"marginTop": "10px"}),
-                    dcc.Dropdown(id="chat-selector", placeholder="Select a Chat", className="mb-3", style={"marginTop": "5px"})
-                ], style={"width": "20%"}),
-                # Column 2: Dialogue performance label
-                html.Div([
-                    html.Div("Dialogue", style={"fontSize": "30px", "fontWeight": "600", "color": GREEN}),
-                    # Wordcloud settings 
-                    dcc.RadioItems(
-                            id="wordcloud-mode",
-                            options=[
-                                {"label": "Raw Frequency", "value": "frequency"},
-                                {"label": "Color by Depth", "value": "depth"},
-                                {"label": "TF-IDF", "value": "tfidf"}
-                            ],
-                            value="frequency",
-                            inline=True,
-                            labelStyle={"marginRight": "15px"},
-                            className="mb-3", 
-                            style={"marginTop": "10px"}
-                    ),
-                    # TO ADD: 
-                    html.Div([
-                            html.Img(id="wordcloud-img", style={
-                                "width": "100%",
-                                "display": "block",
-                                "margin": "0 auto"
-                            })
-                        ], style={
-                            "width": "50%",       
-                            "marginLeft": "30px", 
-                            "marginTop":"20px"
+                        html.Img(id="wordcloud-img", style={
+                            "width": "100%",
+                            "display": "block",
+                            "margin": "0 auto"
                         })
-                ], style={"width": "20%", "marginLeft":"3%"}),
+                    ], style={
+                        "width": "50%",       
+                        "marginLeft": "30px", 
+                        "marginTop":"20px"
+                    })
+            ], style={"width": "20%", "marginLeft":"3%"}),
 
-                # EXTRA COLUMN: Pie chart
+            # EXTRA COLUMN: Pie chart
+            html.Div([
+                dcc.Graph(
+                    id="utility-pie",
+                    config={"displayModeBar": False},
+                    style={"height": "100%", "width": "100%"}
+                )
+            ], style={
+                "width": "18%",
+                "marginTop": "40px",
+                "marginLeft": "0%",
+                "marginRight": "1%"
+            }),
+
+            # Column 3: Tabs 
+            html.Div(style={
+                "width": "38%",
+                "marginLeft": "4%",
+                "marginRight": "0%",
+                "display": "flex",
+                "flexDirection": "column",
+                "alignItems": "stretch"  # allows child to expand full width
+            }, children=[
+                # Tabs (full width)
                 html.Div([
-                    dcc.Graph(
-                        id="utility-pie",
-                        config={"displayModeBar": False},
-                        style={"height": "100%", "width": "100%"}
-                    )
-                ], style={
-                    "width": "18%",
-                    "marginTop": "40px",
-                    "marginLeft": "0%",
-                    "marginRight": "1%"
-                }),
+                    html.Div("Dialogue features", style={
+                        "fontSize": "30px", "fontWeight": "600", "color": GREEN, "marginBottom": "10px"}),
+                    dcc.Tabs(id="insight-tab", value="overall", children=[
+                        dcc.Tab(label="Overall", value="overall"),
+                        dcc.Tab(label=f"Suggestions", value="suggestions"),
+                        dcc.Tab(label=f"Enhancement", value="enhancement"),
+                        dcc.Tab(label=f"Suggestions & Enhancement", value="both"),
+                        dcc.Tab(label=f"No AI", value="noai"),
+                    ])
+                ], style={"width": "100%", "marginLeft": "0%"}),
+            ])
+        ]),
+        # Dynamic chart grid
+        html.Div(id="grid-content")
+    ])
 
-                # Column 3: Tabs 
-                html.Div(style={
-                    "width": "38%",
-                    "marginLeft": "4%",
-                    "marginRight": "0%",
-                    "display": "flex",
-                    "flexDirection": "column",
-                    "alignItems": "stretch"  # allows child to expand full width
-                }, children=[
-                    # Tabs (full width)
-                    html.Div([
-                        html.Div("Dialogue features", style={
-                            "fontSize": "30px", "fontWeight": "600", "color": GREEN, "marginBottom": "10px"}),
-                        dcc.Tabs(id="insight-tab", value="overall", children=[
-                            dcc.Tab(label="Overall", value="overall"),
-                            dcc.Tab(label=f"Suggestions", value="suggestions"),
-                            dcc.Tab(label=f"Enhancement", value="enhancement"),
-                            dcc.Tab(label=f"Suggestions & Enhancement", value="both"),
-                            dcc.Tab(label=f"No AI", value="noai"),
-                        ])
-                    ], style={"width": "100%", "marginLeft": "0%"}),
-                ])
-            ]),
-            # Dynamic chart grid
-            html.Div(id="grid-content")
-        ])
-
-@dash.callback(
+@callback(
     Output("grid-content", "children"),
     Input("insight-tab-store", "data")
 )
@@ -322,7 +324,7 @@ def update_keywords_wordcloud(chat_id, mode):
 
     return f"data:image/png;base64,{encoded_image}"
 
-@dash.callback(
+@callback(
     Output("dialogue-statistics", "children"),
     Input("chat-selector", "value"),
     prevent_initial_call=True
@@ -454,7 +456,7 @@ def update_functionality_bar(chat_id):
     return fig
 
 # POPULATE WORDCLOUD 
-@dash.callback(
+@callback(
     Output("insight-tab", "children"),
     Output("wordcloud-img", "src"),
     Input("chat-selector", "value"),
@@ -466,7 +468,7 @@ def render_wordcloud(chat_id, mode):
     return update_tab_labels(chat_id), update_keywords_wordcloud(chat_id, mode)
 
 # POPULATE FUNCTIONALITY BAR CHART 
-@dash.callback(
+@callback(
     Output("functionality-bar", "figure"),
     Input("chat-selector", "value"),
     prevent_initial_call=True
@@ -476,7 +478,7 @@ def render_functionality_bar(chat_id):
 
 
 # POPULATE PIE CHART 
-@dash.callback(
+@callback(
     Output("utility-pie", "figure"),
     Input("chat-selector", "value"),
     prevent_initial_call=True
@@ -486,14 +488,20 @@ def update_pie_chart(chat_id):
         raise PreventUpdate
     return pie_chart_utility(chat_id)
 
-@dash.callback(
+@callback(
     Output("chat-selector", "options"),
     Input("refresh-button", "n_clicks"),
+    State('app-user-info', 'data'),
     prevent_initial_call=True
 )
-def populate_chat_dropdown(n_clicks):
+def populate_chat_dropdown(n_clicks, user_info):
+    user_id = user_info.get("user_id")
+    if user_id is None:
+        raise PreventUpdate
+
     with Database() as db:
-        chats = db.fetch_all_chats()
+        chats = db.fetch_chats_by_user(user_id)
+        
     options = [{"label": f"{chat['id']} — {chat['title']}", "value": chat['id']} for _, chat in chats.iterrows()]
     return options
 ######### 
@@ -597,7 +605,7 @@ def line_chart_change_amplitude(chat_id):
                 )
     return fig
 
-@dash.callback(
+@callback(
     Output({'type': 'graph', 'index': ALL}, 'figure'),
     #Output({'type': 'graph', 'index': 'bert-lpips-amplitude'}, 'figure'),
     Input('chat-selector', 'value'),
