@@ -1,0 +1,612 @@
+import dash
+from dash import html, dcc, Input, Output
+from dash.dependencies import Input, Output, ALL, MATCH
+import plotly.graph_objs as go
+import dash_bootstrap_components as dbc
+from dash.exceptions import PreventUpdate
+from db.database import Database
+import numpy as np
+import pandas as pd
+from wordcloud import WordCloud
+from matplotlib import cm
+from sklearn.feature_extraction.text import TfidfVectorizer
+import base64
+import io
+
+
+# theme colours 
+BG = "#FFEED6"
+GREEN = "#38432E" 
+G_HEIGHT = 350
+# Instead of a pie chart, inserting percentages into tabs 
+perc_sugg = str(0) 
+perc_enh = str(0)
+perc_sugg_enh = str(0)
+perc_no_ai = str(0)
+
+static_heatmap = go.Figure()
+static_bar_chart = go.Figure()
+
+def create_admin_layout():
+    return html.Div([
+            dcc.Store(id="insight-tab-store", data="overall"),
+            # Top header
+            html.Div(
+                style={"backgroundColor": GREEN, "color": "white", "width": "100%", "padding": "50px 0px 50px 30px"},
+                children=[
+                    html.Span("AI-D", style={"fontWeight": "bold", "fontSize": "35px", "marginRight": "10px"}),
+                    html.Span("|", style={"margin": "0 10px", "fontSize": "35px"}),
+                    html.Span(" Developer", style={"fontStyle": "italic", "fontSize": "28px"})
+                ]
+            ),
+            html.Div(style={"display": "flex", "padding": "30px 50px 0 30px", "marginBottom": "20px"}, children=[
+                # Column 1: Dialogue history
+                html.Div([
+                    html.Div("Dialogue history", style={"fontSize": "30px", "fontWeight": "600", "color": GREEN}),
+                    # History drop-down 
+                    dbc.Button("Refresh", id="refresh-button", color="primary", className="mb-3", style={"marginTop": "10px"}),
+                    dcc.Dropdown(id="chat-selector", placeholder="Select a Chat", className="mb-3", style={"marginTop": "5px"})
+                ], style={"width": "20%"}),
+                # Column 2: Dialogue performance label
+                html.Div([
+                    html.Div("Dialogue", style={"fontSize": "30px", "fontWeight": "600", "color": GREEN}),
+                    # Wordcloud settings 
+                    dcc.RadioItems(
+                            id="wordcloud-mode",
+                            options=[
+                                {"label": "Raw Frequency", "value": "frequency"},
+                                {"label": "Color by Depth", "value": "depth"},
+                                {"label": "TF-IDF", "value": "tfidf"}
+                            ],
+                            value="frequency",
+                            inline=True,
+                            labelStyle={"marginRight": "15px"},
+                            className="mb-3", 
+                            style={"marginTop": "10px"}
+                    ),
+                    # TO ADD: 
+                    html.Div([
+                            html.Img(id="wordcloud-img", style={
+                                "width": "100%",
+                                "display": "block",
+                                "margin": "0 auto"
+                            })
+                        ], style={
+                            "width": "50%",       
+                            "marginLeft": "30px", 
+                            "marginTop":"20px"
+                        })
+                ], style={"width": "20%", "marginLeft":"3%"}),
+
+                # EXTRA COLUMN: Pie chart
+                html.Div([
+                    dcc.Graph(
+                        id="utility-pie",
+                        config={"displayModeBar": False},
+                        style={"height": "100%", "width": "100%"}
+                    )
+                ], style={
+                    "width": "18%",
+                    "marginTop": "40px",
+                    "marginLeft": "0%",
+                    "marginRight": "1%"
+                }),
+
+                # Column 3: Tabs 
+                html.Div(style={
+                    "width": "38%",
+                    "marginLeft": "4%",
+                    "marginRight": "0%",
+                    "display": "flex",
+                    "flexDirection": "column",
+                    "alignItems": "stretch"  # allows child to expand full width
+                }, children=[
+                    # Tabs (full width)
+                    html.Div([
+                        html.Div("Dialogue features", style={
+                            "fontSize": "30px", "fontWeight": "600", "color": GREEN, "marginBottom": "10px"}),
+                        dcc.Tabs(id="insight-tab", value="overall", children=[
+                            dcc.Tab(label="Overall", value="overall"),
+                            dcc.Tab(label=f"Suggestions", value="suggestions"),
+                            dcc.Tab(label=f"Enhancement", value="enhancement"),
+                            dcc.Tab(label=f"Suggestions & Enhancement", value="both"),
+                            dcc.Tab(label=f"No AI", value="noai"),
+                        ])
+                    ], style={"width": "100%", "marginLeft": "0%"}),
+                ])
+            ]),
+            # Dynamic chart grid
+            html.Div(id="grid-content")
+        ])
+
+@dash.callback(
+    Output("grid-content", "children"),
+    Input("insight-tab-store", "data")
+)
+
+
+def render_figures(tab):
+    return html.Div([
+        html.Div(style={"display": "flex", "padding": "0px 0px 0 0px"}, children=[
+            html.Div("", style={
+                "width": "20%", "textAlign":"left", "marginLeft": "30px", 
+                "fontSize": "30px", "fontWeight": "600", "color": GREEN
+            }), 
+            # Bar Chart of Amplitudes by functionality (right)
+            html.Div(dcc.Graph(id='functionality-bar'), style={"width": "35%", "marginLeft": "1%"}), 
+            # Prompt & Image Guidance
+            html.Div(dcc.Graph(id={'type': 'graph','index': 'model-parameters'}, config={'displayModeBar': False}), style={
+                "width": "35%", "marginLeft": "5%"
+            })
+        ]),
+
+        html.Div(style={"display": "flex", "marginTop": "40px"}, children=[
+            html.Div("", style={
+                "width": "20%", "textAlign":"left", "marginLeft": "30px", 
+                "fontSize": "30px", "fontWeight": "600", "color": GREEN
+            }),
+            # Existing amplitude graph
+            html.Div(id="dialogue-statistics", style={
+                "display": "flex",
+                "justifyContent": "space-around",
+                "alignItems": "center",
+                "marginTop": "30px",
+                "marginBottom": "20px",
+                "padding": "0 10%"
+            }), 
+            html.Div(dcc.Graph(id={'type': 'graph','index': 'bert-lpips-amplitude'}, config={'displayModeBar': False}),
+                    style={"width": "35%", "marginLeft": "0%"})
+        ])
+    ])
+
+
+### STATIC ELEMENTS 
+def calculate_average_prompt_novelty(chat_id):
+    if chat_id is None:
+        raise PreventUpdate
+
+    with Database() as db:
+        bert_df = db.fetch_all_bertscore_metrics()
+
+    df = bert_df[bert_df['chat_id'] == chat_id]
+    if df.empty:
+        return 0.0
+
+    return round(df['bert_novelty'].mean(), 3)
+
+def calculate_average_image_change(chat_id):
+    if chat_id is None:
+        raise PreventUpdate
+
+    with Database() as db:
+        lpips_df = db.fetch_all_lpips_metrics()
+
+    df = lpips_df[lpips_df['chat_id'] == chat_id]
+    if df.empty:
+        return 0.0
+
+    return round(df['lpips'].mean(), 3)
+
+
+def calculate_average_prompt_length(chat_id):
+    if chat_id is None:
+        raise PreventUpdate
+
+    with Database() as db:
+        prompts = db.fetch_prompts_by_chat(chat_id)
+
+    if prompts.empty or 'text' not in prompts.columns:
+        return 0.0
+
+    prompt_lengths = prompts['text'].dropna().apply(lambda t: len(t.split()))
+    return round(prompt_lengths.mean(), 1)
+
+### 
+def calculate_summary_statistics(chat_id):
+    return {
+        "avg_prompt_novelty": calculate_average_prompt_novelty(chat_id),
+        "avg_image_change": calculate_average_image_change(chat_id),
+        "avg_prompt_length": calculate_average_prompt_length(chat_id)
+    }
+
+### 
+
+def get_functionality_percentages(chat_id):
+    if chat_id is None:
+        raise PreventUpdate
+
+    with Database() as db:
+        df = db.fetch_all_functionality_metrics()
+
+    df = df[df['chat_id'] == chat_id]
+    if df.empty:
+        raise PreventUpdate
+
+    row = df.iloc[0]
+    return (
+        str(round(row['used_suggestion_pct'], 1)),
+        str(round(row['used_enhancement_pct'], 1)),
+        str(round(row['used_both_pct'], 1)),
+        str(round(row['no_ai_pct'], 1))
+    )
+
+def pie_chart_utility(chat_id):
+    values = get_functionality_percentages(chat_id) 
+    labels = ["Suggestions", "Enhancement", "S + E", "No AI"]
+    colors = ["#7B002C", "#00008B", "#8B4513", "#006400"]
+    fig = go.Figure(go.Pie(labels=labels, values=values,
+                           marker_colors=colors, textinfo="label+percent"))
+    fig.update_layout(
+        height=200,
+        margin=dict(t=40, b=20, l=5, r=5),
+        paper_bgcolor=BG,
+        #plot_bgcolor=BG,
+        font=dict(family="sans-serif", size=12),
+        showlegend=False
+    )
+    return fig
+
+
+def update_keywords_wordcloud(chat_id, mode):
+    # Keyword wordcloud 
+    if chat_id is None:
+        raise PreventUpdate
+
+    with Database() as db:
+        df = db.fetch_all_prompt_word_metrics()
+    df = df[df['chat_id'] == chat_id].dropna(subset=['relevant_words', 'depth'])
+    # If any row contains an unexpected format (e.g., not a string), this will raise an error. 
+    # need to run to check if error is raised
+    df['relevant_words'] = df['relevant_words'].apply(lambda s: s.split(','))
+
+    if df.empty:
+        raise PreventUpdate
+
+    # RAW FREQUENCY: most common words regardless of time
+    if mode == 'frequency':
+        all_words = pd.Series([w for words in df['relevant_words'] for w in words])
+        word_freq = all_words.value_counts().to_dict()
+        wc = WordCloud(width=800, height=400, background_color="white").generate_from_frequencies(word_freq)
+
+    # COLOR BY DEPTH:  words colored based on when they appeared
+    elif mode == 'depth':
+        word_depths = {}
+        word_counts = {}
+        for _, row in df.iterrows():
+            for word in row['relevant_words']:
+                word_depths[word] = word_depths.get(word, 0) + row['depth']
+                word_counts[word] = word_counts.get(word, 0) + 1
+        avg_depths = {w: word_depths[w] / word_counts[w] for w in word_depths}
+        word_freq = word_counts
+
+        def get_color_func(avg_depths):
+            min_d, max_d = min(avg_depths.values()), max(avg_depths.values())
+            colormap = cm.get_cmap('coolwarm')
+            def color_func(word, **kwargs):
+                norm = (avg_depths.get(word, min_d) - min_d) / (max_d - min_d + 1e-5)
+                r, g, b, _ = [int(c * 255) for c in colormap(norm)]
+                return f"rgb({r},{g},{b})"
+            return color_func
+
+        wc = WordCloud(width=800, height=400, background_color="white").generate_from_frequencies(word_freq)
+        wc.recolor(color_func=get_color_func(avg_depths))
+
+    # TF-IDF: what makes this chat lexically unique
+    elif mode == 'tfidf':
+        with Database() as db:
+            all_df = db.fetch_all_prompt_word_metrics()
+        all_df = all_df.dropna(subset=['relevant_words'])
+        all_df['relevant_words'] = all_df['relevant_words'].apply(lambda s: s.split(','))
+        chats_grouped = all_df.groupby('chat_id')['relevant_words'].apply(lambda lst: [" ".join(words) for words in lst])
+        chat_docs = chats_grouped.apply(lambda lst: " ".join(lst)).tolist()
+        chat_ids = chats_grouped.index.tolist()
+
+        vectorizer = TfidfVectorizer()
+        tfidf_matrix = vectorizer.fit_transform(chat_docs)
+
+        if chat_id in chat_ids:
+            chat_idx = chat_ids.index(chat_id)
+            words = vectorizer.get_feature_names_out()
+            scores = tfidf_matrix[chat_idx].toarray().flatten()
+            tfidf_scores = {word: scores[i] for i, word in enumerate(words) if scores[i] > 0}
+            wc = WordCloud(width=800, height=400, background_color="white").generate_from_frequencies(tfidf_scores)
+        else:
+            raise PreventUpdate
+
+    else:
+        raise PreventUpdate
+
+    img_buffer = io.BytesIO()
+    wc.to_image().save(img_buffer, format="PNG")
+    encoded_image = base64.b64encode(img_buffer.getvalue()).decode()
+
+    return f"data:image/png;base64,{encoded_image}"
+
+@dash.callback(
+    Output("dialogue-statistics", "children"),
+    Input("chat-selector", "value"),
+    prevent_initial_call=True
+)
+def update_statistics_display(chat_id):
+    if chat_id is None:
+        raise PreventUpdate
+
+    stats = calculate_summary_statistics(chat_id)
+
+    def create_sphere(label, value, color, margin_right=False):
+        return html.Div([
+            html.Div(f"{value}", style={
+                "fontSize": "24px",
+                "fontWeight": "bold",
+                "color": "white" if color != "#FFEED6" else "#000",
+                "textAlign": "center",
+                "marginTop": "20%"
+            }),
+            html.Div(label, style={
+                "fontSize": "14px",
+                "color": "white" if color != "#FFEED6" else "#000",
+                "textAlign": "center",
+                "marginTop": "5px"
+            })
+            ], style={
+                "width": "140px",
+                "height": "140px",
+                "borderRadius": "50%",
+                "backgroundColor": color,
+                "display": "flex",
+                "flexDirection": "column",
+                "alignItems": "center",
+                "justifyContent": "center",
+                "boxShadow": "0 4px 8px rgba(0, 0, 0, 0.2)",
+                "padding": "10px",
+                "marginRight": "30px" if margin_right else "0"
+            })
+
+    return [
+            create_sphere("Avg Prompt Novelty", stats["avg_prompt_novelty"], "#7B002C", margin_right=True),
+            create_sphere("Avg Image Change", stats["avg_image_change"], "#00008B", margin_right=True)
+            #create_sphere("Avg Prompt Length", stats["avg_prompt_length"], "#FFEED6", margin_right=False)
+        ]
+
+
+def update_tab_labels(chat_id):
+    if chat_id is None:
+        raise PreventUpdate
+
+    perc_sugg, perc_enh, perc_sugg_enh, perc_no_ai = get_functionality_percentages(chat_id)
+
+    return [
+        dcc.Tab(label="Overall", value="overall"),
+        dcc.Tab(label=f"Suggestions", value="suggestions"),
+        dcc.Tab(label=f"Enhancement", value="enhancement"),
+        dcc.Tab(label=f"Suggestions & Enhancement", value="both"),
+        dcc.Tab(label=f"No AI", value="noai"),
+    ]
+
+def update_functionality_bar(chat_id):
+    if chat_id is None:
+        return go.Figure()
+
+    with Database() as db:
+        prompts = db.fetch_prompts_by_chat(chat_id)
+        bert = db.fetch_bertscore_by_chat(chat_id)
+        lpips = db.fetch_lpips_by_chat(chat_id)
+
+    prompts = prompts.copy()
+    prompts["used_suggestion"] = prompts["used_suggestion"].astype(bool)
+    prompts["is_enhanced"] = prompts["is_enhanced"].astype(bool)
+
+    def get_func(row):
+        if row["used_suggestion"] and not row["is_enhanced"]:
+            return "S"
+        elif not row["used_suggestion"] and row["is_enhanced"]:
+            return "E"
+        elif row["used_suggestion"] and row["is_enhanced"]:
+            return "S+E"
+        else:
+            return "No AI"
+
+    prompts["functionality"] = prompts.apply(get_func, axis=1)
+
+    # === BERT SCORE ===
+    merged_bert = prompts.merge(bert, left_on="id", right_on="prompt_id", how="inner")
+    bert_group = merged_bert.groupby("functionality")["bert_novelty"].mean()
+
+    # === LPIPS ===
+    # Ensure images_out is a list (some may be stored as JSON strings)
+    prompts["images_out"] = prompts["images_out"].apply(
+        lambda x: eval(x) if isinstance(x, str) and x.startswith("[") else x
+    )
+    prompts_exploded = prompts.explode("images_out").rename(columns={"images_out": "image_id"})
+
+    merged_lpips = prompts_exploded.merge(lpips, on="image_id", how="inner")
+    lpips_group = merged_lpips.groupby("functionality")["lpips"].mean()
+
+    # === Combine & Plot ===
+    df = pd.DataFrame({
+        "BERTScore": bert_group,
+        "LPIPS": lpips_group
+    }).fillna(0).reset_index()
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=df["functionality"], y=df["BERTScore"],
+        name="ΔPrompt (BERTScore)", marker_color="darkred"
+    ))
+    fig.add_trace(go.Bar(
+        x=df["functionality"], y=df["LPIPS"],
+        name="ΔPrompt (LPIPS)", marker_color="darkblue"
+    ))
+
+    fig.update_layout(
+        title="Mean Prompt Novelty, mean Image Change per dialogue feature",
+        xaxis_title="Feature",
+        yaxis_title="Score",
+        barmode="group",
+        plot_bgcolor=BG,
+        paper_bgcolor=BG,
+        margin=dict(t=50, b=30, l=40, r=40),
+        font=dict(family="sans-serif", size=13), 
+        height=G_HEIGHT, 
+        title_font_size=14
+    )
+
+    return fig
+
+# POPULATE WORDCLOUD 
+@dash.callback(
+    Output("insight-tab", "children"),
+    Output("wordcloud-img", "src"),
+    Input("chat-selector", "value"),
+    Input("wordcloud-mode", "value"),
+    prevent_initial_call=True
+)
+
+def render_wordcloud(chat_id, mode):
+    return update_tab_labels(chat_id), update_keywords_wordcloud(chat_id, mode)
+
+# POPULATE FUNCTIONALITY BAR CHART 
+@dash.callback(
+    Output("functionality-bar", "figure"),
+    Input("chat-selector", "value"),
+    prevent_initial_call=True
+)
+def render_functionality_bar(chat_id):
+    return update_functionality_bar(chat_id)
+
+
+# POPULATE PIE CHART 
+@dash.callback(
+    Output("utility-pie", "figure"),
+    Input("chat-selector", "value"),
+    prevent_initial_call=True
+)
+def update_pie_chart(chat_id):
+    if chat_id is None:
+        raise PreventUpdate
+    return pie_chart_utility(chat_id)
+
+@dash.callback(
+    Output("chat-selector", "options"),
+    Input("refresh-button", "n_clicks"),
+    prevent_initial_call=True
+)
+def populate_chat_dropdown(n_clicks):
+    with Database() as db:
+        chats = db.fetch_all_chats()
+    options = [{"label": f"{chat['id']} — {chat['title']}", "value": chat['id']} for _, chat in chats.iterrows()]
+    return options
+######### 
+
+def line_chart_guidances(chat_id):
+    if chat_id is None:
+        raise PreventUpdate
+
+    with Database() as db:
+        df = db.fetch_all_guidance_metrics()
+
+    df = df[df['chat_id'] == chat_id].sort_values(by='depth')
+
+    fig = go.Figure()
+    fig.add_trace(
+            go.Scatter(
+                        x=df['depth'], 
+                        y=df['prompt_guidance'], 
+                        mode='lines+markers', 
+                        name='Prompt Guidance', 
+                        line=dict(color="#7B002C", width=2),
+                        marker=dict(symbol="circle", size=6)
+                    )
+                )
+    fig.add_trace(
+            go.Scatter(
+                        x=df['depth'], 
+                        y=df['image_guidance'], 
+                        mode='lines+markers', 
+                        name='Image Guidance', 
+                        line=dict(color="#00008B", width=2),
+                        marker=dict(symbol="circle", size=6)
+                     )
+                )
+    fig.update_layout(
+                title="Prompt and Image Guidance over Generations", 
+                height=G_HEIGHT,
+                font=dict(family="sans-serif", size=13), 
+                xaxis=dict(
+                    title="Generation",
+                    tickmode="linear",
+                    tick0=1,
+                    dtick=1
+                ),
+                yaxis_title="Guidance Value",  
+                paper_bgcolor=BG,
+                plot_bgcolor=BG,
+                margin=dict(t=50, b=30, l=40, r=40),
+                title_font_size=14
+                )
+    return fig
+
+## Adjust to take tab-dependent values in 
+def line_chart_change_amplitude(chat_id):
+    if chat_id is None:
+        raise PreventUpdate
+
+    with Database() as db:
+        bert_df = db.fetch_all_bertscore_metrics()
+        lpips_df = db.fetch_all_lpips_metrics()
+
+    bert_df = bert_df[bert_df['chat_id'] == chat_id].sort_values(by='depth')
+    lpips_df = lpips_df[lpips_df['chat_id'] == chat_id].sort_values(by='depth')
+
+    fig = go.Figure()
+    fig.add_trace(
+            go.Scatter(
+                        x=bert_df['depth'], 
+                        y=bert_df['bert_novelty'], 
+                        mode='lines+markers', 
+                        name='BERT Novelty', 
+                        line=dict(color="#7B002C", width=2),
+                        marker=dict(symbol="circle", size=6)
+                    )
+                )
+    fig.add_trace(
+            go.Scatter(
+                        x=lpips_df['depth'], 
+                        y=lpips_df['lpips'], 
+                        mode='lines+markers', 
+                        name='LPIPS', 
+                        line=dict(color="#00008B", width=2),
+                        marker=dict(symbol="circle", size=6)
+                     )
+                )
+    fig.update_layout(
+                title="Prompt Novelty and Image Change Amplitude", 
+                height=G_HEIGHT,
+                font=dict(family="sans-serif", size=13), 
+                xaxis=dict(
+                    title="Generation",
+                    tickmode="linear",
+                    tick0=1,
+                    dtick=1
+                ),
+                yaxis_title="Value",  
+                paper_bgcolor=BG,
+                plot_bgcolor=BG,
+                margin=dict(t=50, b=30, l=40, r=40),
+                title_font_size=14
+                )
+    return fig
+
+@dash.callback(
+    Output({'type': 'graph', 'index': ALL}, 'figure'),
+    #Output({'type': 'graph', 'index': 'bert-lpips-amplitude'}, 'figure'),
+    Input('chat-selector', 'value'),
+    prevent_initial_call=True)
+
+def update_graphs(chat_id):
+    if chat_id is None:
+        raise PreventUpdate
+    return (
+        line_chart_guidances(chat_id),
+        line_chart_change_amplitude(chat_id)
+    )
