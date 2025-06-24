@@ -127,18 +127,20 @@ class Database:
         return self.execute_query(query, params)
 
     # Image method: Handles retrieving image metadata.    
-    def fetch_images_by_chat(self, chat_id, pandas=default_pandas, include_depth=False):
+    def fetch_images_by_chat(self, chat_id, pandas=default_pandas, include_depth=False, is_selected=None):
         """
         Fetches all images associated with a specific chat.
         Args:
             chat_id (int): The ID of the chat to fetch images for.
             pandas (bool): If True, returns a pandas DataFrame; otherwise, returns a list of tuples.
             include_depth (bool): If True, includes depth information in the result.
+            is_selected (bool or None): If True, fetch only selected images; if False, fetch only unselected images; if None, fetch all images.
         Returns:
             A pandas DataFrame or a list of tuples containing image metadata.
         """
         if not isinstance(chat_id, int):
             raise ValueError("chat_id must be an integer")
+        params = [chat_id]
         if include_depth:
             query = """
             SELECT images.*, prompts.depth
@@ -148,9 +150,20 @@ class Database:
             """
         else:
             query = "SELECT * FROM images WHERE chat_id = ?"
+
+        if is_selected is not None:
+            query += " AND images.selected = ?"
+            params.append(1 if is_selected else 0)
+        else:
+            params = (chat_id,)
+
+        # if pandas:
+        #     return self.fetch_dataframe(query, (chat_id,))
+        # return self.execute_query(query, (chat_id,))
         if pandas:
-            return self.fetch_dataframe(query, (chat_id,))
-        return self.execute_query(query, (chat_id,))
+            return self.fetch_dataframe(query, tuple(params))
+        return self.execute_query(query, tuple(params))
+
 
     # Image method: Handles retrieving image metadata.    
     def fetch_images_by_prompt(self, prompt_id, pandas=default_pandas):
@@ -772,9 +785,16 @@ class Database:
                                             image_guidance=prompt_image.image_guidance)
 
                 # Try to find previous image by depth
-                prior_images = self.fetch_images_by_chat(session_id, pandas=True)
-                prior_images = prior_images.merge(self.fetch_all_prompts(), how="left", left_on="output_prompt_id", right_on="id")
+                # prior_images = self.fetch_images_by_chat(session_id, pandas=True)
+                # prior_images = prior_images.merge(self.fetch_all_prompts(), how="left", left_on="output_prompt_id", right_on="id")
+                # prior_images = prior_images[prior_images["depth"] == depth_input - 1]
+                prior_images = self.fetch_images_by_chat(session_id, pandas=True, is_selected=True)
+                prior_images = prior_images.merge(self.fetch_all_prompts(),
+                                                   how="left",
+                                                   left_on="output_prompt_id",
+                                                   right_on="id")
                 prior_images = prior_images[prior_images["depth"] == depth_input - 1]
+
 
                 previous_image_id = None
                 previous_image_path = None
@@ -783,19 +803,29 @@ class Database:
                     previous_image_path = prior_images.iloc[0]["path"]
 
                 lpips_score = None
-                if previous_image_path:
-                    # print(f"previous_image_path: {previous_image_path}")
-                    # print(f"current_image_path: {prompt_image.path}")
-                    lpips_score = get_or_compute_lpips(prompt_image.id, prompt_image.path, previous_image_path)
-                else:
-                    lpips_score = None
+                if prompt_image.selected and previous_image_path:
+                    lpips_score = get_or_compute_lpips(prompt_image.id,
+                                                        prompt_image.path,
+                                                          previous_image_path)
+                    self.insert_lpips_metric(image_id=prompt_image.id,
+                             previous_image_id=previous_image_id,
+                             user_id=user_id,
+                             chat_id=session_id,
+                             depth=depth_input,
+                             lpips=lpips_score)
+                # if previous_image_path:
+                #     # print(f"previous_image_path: {previous_image_path}")
+                #     # print(f"current_image_path: {prompt_image.path}")
+                #     lpips_score = get_or_compute_lpips(prompt_image.id, prompt_image.path, previous_image_path)
+                # else:
+                #     lpips_score = None
                 
-                self.insert_lpips_metric(image_id=prompt_image.id,
-                                        previous_image_id=previous_image_id,
-                                        user_id=user_id,
-                                        chat_id=session_id,
-                                        depth=depth_input,
-                                        lpips=lpips_score)
+                # self.insert_lpips_metric(image_id=prompt_image.id,
+                #                         previous_image_id=previous_image_id,
+                #                         user_id=user_id,
+                #                         chat_id=session_id,
+                #                         depth=depth_input,
+                #                         lpips=lpips_score)
             return True
         except Exception as e:
             print(f"Error saving image to database: {e}")
