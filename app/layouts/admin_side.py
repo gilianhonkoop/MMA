@@ -33,14 +33,16 @@ def create_admin_layout():
     return html.Div([
         dcc.Store(id="insight-tab-store", data="overall"),
         # Top header
-        html.Div(
-            style={"backgroundColor": GREEN, "color": "white", "width": "100%", "padding": "50px 0px 50px 30px"},
-            children=[
-                html.Span("AI-D", style={"fontWeight": "bold", "fontSize": "35px", "marginRight": "10px"}),
-                html.Span("|", style={"margin": "0 10px", "fontSize": "35px"}),
-                html.Span(" Developer", style={"fontStyle": "italic", "fontSize": "28px"})
-            ]
-        ),
+        
+        # I commented this out because we already have a navbar in the main app layout
+        # html.Div(
+        #     style={"backgroundColor": GREEN, "color": "white", "width": "100%", "padding": "50px 0px 50px 30px"},
+        #     children=[
+        #         html.Span("AI-D", style={"fontWeight": "bold", "fontSize": "35px", "marginRight": "10px"}),
+        #         html.Span("|", style={"margin": "0 10px", "fontSize": "35px"}),
+        #         html.Span(" Developer", style={"fontStyle": "italic", "fontSize": "28px"})
+        #     ]
+        # ),
         html.Div(style={"display": "flex", "padding": "30px 50px 0 30px", "marginBottom": "20px"}, children=[
             # Column 1: Dialogue history
             html.Div([

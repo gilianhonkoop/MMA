@@ -25,7 +25,7 @@ app.layout = html.Div([
     dcc.Store(id="app-user-info", storage_type="session", data=None),
     html.Div(id='navbar-container', style={'position': 'fixed', 'top': '0', 'left': '0', 'right': '0', 'zIndex': '999', 'height': '60px', 'backgroundColor': '#38432E'}),
     html.Div(id='page-content', style={'paddingTop': '60px'})
-], style={'height': '100vh', 'overflow': 'hidden'})
+], style={'height': '100vh'})
 
 @callback(
     Output('navbar-container', 'children'),
@@ -34,7 +34,7 @@ app.layout = html.Div([
 def update_navbar(user_info):
     if user_info:
         return dbc.Navbar([
-            dbc.NavbarBrand("Image Generator", className="me-auto"),
+            dbc.NavbarBrand("Image Tree", className="me-auto"),
             dbc.Nav([
                 dbc.NavItem(dbc.NavLink("Home", href="/")),
                 dbc.NavItem(dbc.NavLink("Statistics", href="/admin")),

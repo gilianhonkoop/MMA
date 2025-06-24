@@ -4,39 +4,85 @@ from dash.exceptions import PreventUpdate
 from db import Database
 
 def create_login_layout():
-    return dbc.Container([
-        dbc.Row([
-            dbc.Col([
-                html.H1("Login", className="text-center my-4"),
-                dbc.Card([
-                    dbc.CardBody([
-                        dbc.Tabs([
-                            dbc.Tab([
-                                html.Div([
-                                    dbc.Input(id="login-username", placeholder="Username", type="text", className="mb-3"),
-                                    dbc.Input(id="login-password", placeholder="Password", type="password", className="mb-3"),
-                                    dbc.Button("Login", id="login-button", color="primary", className="w-100"),
-                                    html.Div(id="login-error", className="text-danger mt-3")
-                                ], className="p-3"),
-                            ], label="Login"),
-                            dbc.Tab([
-                                html.Div([
-                                    dbc.Input(id="register-username", placeholder="Username", type="text", className="mb-3"),
-                                    dbc.Input(id="register-password", placeholder="Password", type="password", className="mb-3"),
-                                    dbc.Input(id="register-confirm-password", placeholder="Confirm Password", type="password", className="mb-3"),
-                                    dbc.Button("Register", id="register-button", color="success", className="w-100"),
-                                    html.Div(id="register-error", className="text-danger mt-3"),
-                                    html.Div(id="register-success", className="text-success mt-3")
-                                ], className="p-3"),
-                            ], label="Register"),
-                        ]),
-                    ]),
-                ], className="shadow"),
-            ], width={"size": 6, "offset": 3}),
-        ], className="vh-100 d-flex align-items-center justify-content-center"),
+    return html.Div([
+        html.Div([
+            html.H1("Image Tree", className="text-center mb-4", style={'color': '#38432E', 'fontWeight': 'bold'}),
+            dbc.Card([
+                dbc.CardBody([
+                    dbc.Tabs([
+                        dbc.Tab([
+                            html.Div([
+                                dbc.Input(
+                                    id="login-username", 
+                                    placeholder="Username", 
+                                    type="text", 
+                                    className="mb-3",
+                                    style={'borderColor': '#38432E'}
+                                ),
+                                dbc.Input(
+                                    id="login-password", 
+                                    placeholder="Password", 
+                                    type="password", 
+                                    className="mb-3",
+                                    style={'borderColor': '#38432E'}
+                                ),
+                                dbc.Button(
+                                    "Login", 
+                                    id="login-button", 
+                                    className="w-100",
+                                    style={'backgroundColor': '#38432E', 'borderColor': '#38432E', 'color': 'white'}
+                                ),
+                                html.Div(id="login-error", className="text-danger mt-3")
+                            ], className="p-3"),
+                        ], label="Login", tab_style={'color': '#38432E'}, active_tab_style={'color': '#38432E', 'fontWeight': 'bold'}),
+                        dbc.Tab([
+                            html.Div([
+                                dbc.Input(
+                                    id="register-username", 
+                                    placeholder="Username", 
+                                    type="text", 
+                                    className="mb-3",
+                                    style={'borderColor': '#38432E'}
+                                ),
+                                dbc.Input(
+                                    id="register-password", 
+                                    placeholder="Password", 
+                                    type="password", 
+                                    className="mb-3",
+                                    style={'borderColor': '#38432E'}
+                                ),
+                                dbc.Input(
+                                    id="register-confirm-password", 
+                                    placeholder="Confirm Password", 
+                                    type="password", 
+                                    className="mb-3",
+                                    style={'borderColor': '#38432E'}
+                                ),
+                                dbc.Button(
+                                    "Register", 
+                                    id="register-button", 
+                                    className="w-100",
+                                    style={'backgroundColor': '#38432E', 'borderColor': '#38432E', 'color': 'white'}
+                                ),
+                                html.Div(id="register-error", className="text-danger mt-3"),
+                                html.Div(id="register-success", className="text-success mt-3")
+                            ], className="p-3"),
+                        ], label="Register", tab_style={'color': '#38432E'}, active_tab_style={'color': '#38432E', 'fontWeight': 'bold'}),
+                    ], style={'borderColor': '#38432E'}),
+                ]),
+            ], className="shadow", style={'backgroundColor': '#FFEED6', 'border': '2px solid #38432E', 'maxWidth': '450px', 'width': '100%'}),
+        ], style={
+            'position': 'absolute',
+            'top': '50%',
+            'left': '50%',
+            'transform': 'translate(-50%, -50%)',
+            'width': '100%',
+            'maxWidth': '450px',
+            'padding': '20px'
+        }),
         
         dcc.Store(id="user-info"),
-    ])
+    ], style={'backgroundColor': '#FFEED6', 'minHeight': '100vh', 'height': '100vh', 'position': 'relative'})
 
 @callback(
     [Output("user-info", "data"),
