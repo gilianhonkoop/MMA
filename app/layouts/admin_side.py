@@ -410,18 +410,26 @@ def update_functionality_bar(chat_id):
 
     prompts["functionality"] = prompts.apply(get_func, axis=1)
 
-    # === BERT SCORE ===
+    # # === BERT SCORE ===
+    # merged_bert = prompts.merge(bert, left_on="id", right_on="prompt_id", how="inner")
+    # bert_group = merged_bert.groupby("functionality")["bert_novelty"].mean()
+
+    # # === LPIPS ===
+    # # Ensure images_out is a list (some may be stored as JSON strings)
+    # prompts["images_out"] = prompts["images_out"].apply(
+    #     lambda x: eval(x) if isinstance(x, str) and x.startswith("[") else x
+    # )
+    # prompts_exploded = prompts.explode("images_out").rename(columns={"images_out": "image_id"})
+
+    # merged_lpips = prompts_exploded.merge(lpips, on="image_id", how="inner")
+    # lpips_group = merged_lpips.groupby("functionality")["lpips"].mean()
+
+    # === Merge with BERT ===
     merged_bert = prompts.merge(bert, left_on="id", right_on="prompt_id", how="inner")
     bert_group = merged_bert.groupby("functionality")["bert_novelty"].mean()
 
-    # === LPIPS ===
-    # Ensure images_out is a list (some may be stored as JSON strings)
-    prompts["images_out"] = prompts["images_out"].apply(
-        lambda x: eval(x) if isinstance(x, str) and x.startswith("[") else x
-    )
-    prompts_exploded = prompts.explode("images_out").rename(columns={"images_out": "image_id"})
-
-    merged_lpips = prompts_exploded.merge(lpips, on="image_id", how="inner")
+    # === Merge with LPIPS by user_id, chat_id, and depth ===
+    merged_lpips = prompts.merge(lpips, on=["user_id", "chat_id", "depth"], how="inner")
     lpips_group = merged_lpips.groupby("functionality")["lpips"].mean()
 
     # === Combine & Plot ===
