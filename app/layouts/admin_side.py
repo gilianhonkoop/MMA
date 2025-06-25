@@ -120,7 +120,7 @@ def create_admin_layout():
                 html.Div(style={
                     "height": "2px",
                     "backgroundColor": "#e9edd8",  
-                    "marginTop": "69px",
+                    "marginTop": "115px", # 48pt for full screen 
                     "marginBottom": "13px",
                     "marginLeft": "0px",
                     "width": "100%" 
