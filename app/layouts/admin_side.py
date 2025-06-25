@@ -43,20 +43,16 @@ def filter_by_mode(df, mode):
 green_palette = ["#132a13","#31572c","#4f772d","#90a955","#ecf39e"]
 pie_chart_palette = ["#adb5bd", "#6c757d","#495057","#f3f3f3"]
 GREEN = green_palette[0]
-#BG = "#e9edd8"  #tried "#b1b78f" with opacity at 0.3 "rgba(177, 183, 143, 0.3)", "#b4b8a2"
 BG = "rgba(177, 183, 143, 0.3)"
 Wordcloud_BG = "#e9edd8"
 GD = green_palette[0] # graph dark -- prompt change 
 GR = "#bc4749"# graph red -- image change 
 G_HEIGHT = 350
 # Instead of a pie chart, inserting percentages into tabs 
-perc_sugg = str(0) 
-perc_enh = str(0)
-perc_sugg_enh = str(0)
-perc_no_ai = str(0)
-
-
-
+#perc_sugg = str(0) 
+#perc_enh = str(0)
+#perc_sugg_enh = str(0)
+#perc_no_ai = str(0)
 #static_heatmap = go.Figure()
 #static_bar_chart = go.Figure()
 
@@ -119,15 +115,17 @@ def create_admin_layout():
                         dcc.Tab(label="No AI", value="noai"),
                     ], style={"borderBottom": "2px solid #adb5bd"})
                 ]),
-
+                
+                # A little line as a separator 
                 html.Div(style={
                     "height": "2px",
-                    "backgroundColor": "#e9edd8",  # or match your graph border color
+                    "backgroundColor": "#e9edd8",  
                     "marginTop": "69px",
                     "marginBottom": "13px",
                     "marginLeft": "0px",
-                    "width": "100%"  # or a % to control exact width
+                    "width": "100%" 
                 }),
+
                 # Wordcloud mode selector
                 html.Div([
                     dcc.RadioItems(
