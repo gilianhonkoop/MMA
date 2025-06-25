@@ -22,9 +22,9 @@ import seaborn as sns
 def get_mode(row):
     if row['is_enhanced'] and row['used_suggestion']:
         return 'both'
-    elif row['is_enhanced']:
+    elif row['is_enhanced'] and not row['used_suggestion']:
         return 'enhancement'
-    elif row['used_suggestion']:
+    elif row['used_suggestion'] and not row['is_enhanced']:
         return 'suggestions'
     return 'noai'
 
@@ -137,7 +137,7 @@ def create_admin_layout():
                         ],
                         value="frequency",
                         inline=True,
-                        labelStyle={"marginRight": "15px"},
+                        labelStyle={"marginRight": "15px", "fontSize": "20px"},
                         className="mb-3",
                         style={"marginTop": "5px"}
                     )
@@ -193,7 +193,7 @@ def render_figures(tab):
                     ],
                     value="frequency",
                     inline=True,
-                    labelStyle={"marginRight": "15px"},
+                    labelStyle={"marginRight": "15px", "fontSize": "20px"},
                     className="mb-3",
                     style={"marginTop": "30px"}
                 ),
@@ -305,7 +305,17 @@ def update_keywords_wordcloud(chat_id, mode, tab="overall"):
 
     with Database() as db:
         df = db.fetch_all_prompt_word_metrics()
+        prompts_df = db.fetch_prompts_by_chat(chat_id)
+    df = df.merge(
+        prompts_df[['id', 'used_suggestion', 'is_enhanced']],
+        left_on='prompt_id', right_on='id', how='left')
+    # df = df[df['chat_id'] == chat_id].dropna(subset=['relevant_words', 'depth'])
     df = df[df['chat_id'] == chat_id].dropna(subset=['relevant_words', 'depth'])
+    df['used_suggestion'] = df['used_suggestion'].astype(bool)
+    df['is_enhanced'] = df['is_enhanced'].astype(bool)
+    df['interaction_mode'] = df.apply(get_mode, axis=1)
+    if tab != "overall":
+        df = df[df['interaction_mode'] == tab]
     # If any row contains an unexpected format (e.g., not a string), this will raise an error. 
     # need to run to check if error is raised
     df['relevant_words'] = df['relevant_words'].apply(lambda s: s.split(','))
@@ -524,9 +534,9 @@ def update_functionality_bar(chat_id):
         plot_bgcolor=BG,
         paper_bgcolor=BG,
         margin=dict(t=50, b=30, l=40, r=40),
-        font=dict(family="sans-serif", size=13), 
+        font=dict(family="sans-serif", size=16), 
         height=G_HEIGHT, 
-        title_font_size=14
+        title_font_size=20
     )
 
     return fig
@@ -617,7 +627,7 @@ def line_chart_guidances(chat_id):
     fig.update_layout(
                 title="Prompt and Image Guidance over Generations", 
                 height=G_HEIGHT,
-                font=dict(family="sans-serif", size=13), 
+                font=dict(family="sans-serif", size=16), 
                 xaxis=dict(
                     title="Generation",
                     tickmode="linear",
@@ -628,7 +638,7 @@ def line_chart_guidances(chat_id):
                 paper_bgcolor=BG,
                 plot_bgcolor=BG,
                 margin=dict(t=50, b=30, l=40, r=40),
-                title_font_size=14
+                title_font_size=20
                 )
     return fig
 
@@ -688,7 +698,7 @@ def line_chart_change_amplitude(chat_id, tab="overall"):
                 # title="Prompt Novelty and Image Change Amplitude", 
                 title=f"Prompt Novelty and Image Change Amplitude ({tab.title()})",
                 height=G_HEIGHT,
-                font=dict(family="sans-serif", size=13), 
+                font=dict(family="sans-serif", size=16), 
                 xaxis=dict(
                     title="Generation",
                     tickmode="linear",
@@ -699,7 +709,7 @@ def line_chart_change_amplitude(chat_id, tab="overall"):
                 paper_bgcolor=BG,
                 plot_bgcolor=BG,
                 margin=dict(t=50, b=30, l=40, r=40),
-                title_font_size=14
+                title_font_size=20
                 )
     return fig
 
