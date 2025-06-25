@@ -12,13 +12,42 @@ from matplotlib import cm
 from sklearn.feature_extraction.text import TfidfVectorizer
 import base64
 import io
+import seaborn as sns
 
 # app = dash.Dash(__name__)
 # server = app.server
 
+# In order to filter line_chart_change_amplitude and update_keywords_wordcloudby
+# by the modes, we implement get_mode and filter_by_mode
+def get_mode(row):
+    if row['is_enhanced'] and row['used_suggestion']:
+        return 'both'
+    elif row['is_enhanced']:
+        return 'enhancement'
+    elif row['used_suggestion']:
+        return 'suggestions'
+    return 'noai'
+
+def filter_by_mode(df, mode):
+    if mode == 'overall':
+        return df
+    df = df.copy()
+    df['used_suggestion'] = df['used_suggestion'].astype(bool)
+    df['is_enhanced'] = df['is_enhanced'].astype(bool)
+    df['interaction_mode'] = df.apply(get_mode, axis=1)
+    return df[df['interaction_mode'] == mode]
+
+
+
 # theme colours 
-BG = "#FFEED6"
-GREEN = "#38432E" 
+green_palette = ["#132a13","#31572c","#4f772d","#90a955","#ecf39e"]
+pie_chart_palette = ["#adb5bd", "#6c757d","#495057","#f3f3f3"]
+GREEN = green_palette[0]
+#BG = "#e9edd8"  #tried "#b1b78f" with opacity at 0.3 "rgba(177, 183, 143, 0.3)", "#b4b8a2"
+BG = "rgba(177, 183, 143, 0.3)"
+Wordcloud_BG = "#e9edd8"
+GD = green_palette[0] # graph dark -- prompt change 
+GR = "#bc4749"# graph red -- image change 
 G_HEIGHT = 350
 # Instead of a pie chart, inserting percentages into tabs 
 perc_sugg = str(0) 
@@ -26,36 +55,82 @@ perc_enh = str(0)
 perc_sugg_enh = str(0)
 perc_no_ai = str(0)
 
-static_heatmap = go.Figure()
-static_bar_chart = go.Figure()
+
+
+#static_heatmap = go.Figure()
+#static_bar_chart = go.Figure()
 
 def create_admin_layout():
     return html.Div([
         dcc.Store(id="insight-tab-store", data="overall"),
+
         # Top header
-        
-        # I commented this out because we already have a navbar in the main app layout
-        # html.Div(
-        #     style={"backgroundColor": GREEN, "color": "white", "width": "100%", "padding": "50px 0px 50px 30px"},
-        #     children=[
-        #         html.Span("AI-D", style={"fontWeight": "bold", "fontSize": "35px", "marginRight": "10px"}),
-        #         html.Span("|", style={"margin": "0 10px", "fontSize": "35px"}),
-        #         html.Span(" Developer", style={"fontStyle": "italic", "fontSize": "28px"})
-        #     ]
-        # ),
-        html.Div(style={"display": "flex", "padding": "30px 50px 0 30px", "marginBottom": "20px"}, children=[
-            # Column 1: Dialogue history
+        html.Div(
+            style={"backgroundColor": GREEN, "color": "white", "width": "100%", "padding": "40px 0px 40px 30px"},
+            children=[
+                html.Span("AI-D", style={"fontWeight": "bold", "fontSize": "35px", "marginRight": "10px"}),
+                html.Span("|", style={"margin": "0 10px", "fontSize": "35px"}),
+                html.Span(" Developer", style={"fontStyle": "italic", "fontSize": "28px"})
+            ]
+        ),
+        # 3 COLUMNS: 20%-40%-40%
+        html.Div(style={"display": "flex", "padding": "30px 50px 0 30px"}, children=[
+            # COLUMN 1 - Dialogue History
             html.Div([
                 html.Div("Dialogue history", style={"fontSize": "30px", "fontWeight": "600", "color": GREEN}),
-                # History drop-down 
                 dbc.Button("Refresh", id="refresh-button", color="primary", className="mb-3", style={"marginTop": "10px"}),
                 dcc.Dropdown(id="chat-selector", placeholder="Select a Chat", className="mb-3", style={"marginTop": "5px"})
             ], style={"width": "20%"}),
-            # Column 2: Dialogue performance label
-            html.Div([
-                html.Div("Dialogue", style={"fontSize": "30px", "fontWeight": "600", "color": GREEN}),
-                # Wordcloud settings 
-                dcc.RadioItems(
+
+            # COLUMN 2 - Metrics 
+            html.Div(style={"width": "37%", "display": "flex", "flexDirection": "column", "marginLeft": "3%"}, children=[
+                # Header: Dialogue
+                html.Div("Dialogue", style={
+                    "fontSize": "30px", "fontWeight": "600", "color": GREEN, "marginBottom": "0px", "width":"48%"
+                }),
+                # ROW 1 - Spheres and pie chart side-by-side
+                html.Div(style={"display": "flex", "marginBottom": "10px"}, children=[
+                    html.Div(id="dialogue-statistics", style={
+                        "width": "48%", "display": "flex", "justifyContent": "center", "alignItems": "center"
+                    }),
+                    html.Div(dcc.Graph(id="utility-pie", config={"displayModeBar": False}), style={"width": "48%", "marginLeft": "2%"})
+                ]),
+
+                # ROW 2 - Bar chart
+                html.Div(dcc.Graph(id='functionality-bar'), style={"width": "100%", "marginTop": "20px"}),
+
+                # ROW 3 - Prompt & Image Guidance
+                html.Div(dcc.Graph(id={'type': 'graph', 'index': 'model-parameters'}, config={"displayModeBar": False}),
+                        style={"width": "100%", "marginTop": "20px"})
+            ]),
+
+            # COLUMN 3 - Tabs, Wordcloud, Amplitude chart 
+            html.Div(style={"width": "37%", "display": "flex", "flexDirection": "column", "marginLeft": "3%"}, children=[
+                # Tabs header
+                html.Div([
+                    html.Div("Dialogue features", style={
+                        "fontSize": "30px", "fontWeight": "600", "color": GREEN, "marginBottom": "10px"
+                    }),
+                    dcc.Tabs(id="insight-tab", value="overall", children=[
+                        dcc.Tab(label="Overall", value="overall"),
+                        dcc.Tab(label="Suggestions", value="suggestions"),
+                        dcc.Tab(label="Enhancement", value="enhancement"),
+                        dcc.Tab(label="Suggestions & Enhancement", value="both"),
+                        dcc.Tab(label="No AI", value="noai"),
+                    ], style={"borderBottom": "2px solid #adb5bd"})
+                ]),
+
+                html.Div(style={
+                    "height": "2px",
+                    "backgroundColor": "#e9edd8",  # or match your graph border color
+                    "marginTop": "69px",
+                    "marginBottom": "13px",
+                    "marginLeft": "0px",
+                    "width": "100%"  # or a % to control exact width
+                }),
+                # Wordcloud mode selector
+                html.Div([
+                    dcc.RadioItems(
                         id="wordcloud-mode",
                         options=[
                             {"label": "Raw Frequency", "value": "frequency"},
@@ -65,63 +140,32 @@ def create_admin_layout():
                         value="frequency",
                         inline=True,
                         labelStyle={"marginRight": "15px"},
-                        className="mb-3", 
-                        style={"marginTop": "10px"}
-                ),
-                # TO ADD: 
-                html.Div([
-                        html.Img(id="wordcloud-img", style={
-                            "width": "100%",
-                            "display": "block",
-                            "margin": "0 auto"
-                        })
-                    ], style={
-                        "width": "50%",       
-                        "marginLeft": "30px", 
-                        "marginTop":"20px"
-                    })
-            ], style={"width": "20%", "marginLeft":"3%"}),
+                        className="mb-3",
+                        style={"marginTop": "5px"}
+                    )
+                ]),
 
-            # EXTRA COLUMN: Pie chart
-            html.Div([
-                dcc.Graph(
-                    id="utility-pie",
-                    config={"displayModeBar": False},
-                    style={"height": "100%", "width": "100%"}
-                )
-            ], style={
-                "width": "18%",
-                "marginTop": "40px",
-                "marginLeft": "0%",
-                "marginRight": "1%"
-            }),
+                # Wordcloud image
+                html.Div(html.Img(id="wordcloud-img", style={
+                    "width": "100%", "marginTop": "5px"
+                })),
 
-            # Column 3: Tabs 
-            html.Div(style={
-                "width": "38%",
-                "marginLeft": "4%",
-                "marginRight": "0%",
-                "display": "flex",
-                "flexDirection": "column",
-                "alignItems": "stretch"  # allows child to expand full width
-            }, children=[
-                # Tabs (full width)
-                html.Div([
-                    html.Div("Dialogue features", style={
-                        "fontSize": "30px", "fontWeight": "600", "color": GREEN, "marginBottom": "10px"}),
-                    dcc.Tabs(id="insight-tab", value="overall", children=[
-                        dcc.Tab(label="Overall", value="overall"),
-                        dcc.Tab(label=f"Suggestions", value="suggestions"),
-                        dcc.Tab(label=f"Enhancement", value="enhancement"),
-                        dcc.Tab(label=f"Suggestions & Enhancement", value="both"),
-                        dcc.Tab(label=f"No AI", value="noai"),
-                    ])
-                ], style={"width": "100%", "marginLeft": "0%"}),
+                # Prompt Novelty and Image Change
+                html.Div(dcc.Graph(id={'type': 'graph', 'index': 'bert-lpips-amplitude'},
+                                   config={"displayModeBar": False}),
+                         style={"width": "100%", "marginTop": "20px"})
             ])
-        ]),
-        # Dynamic chart grid
-        html.Div(id="grid-content")
+        ])
     ])
+
+@callback(
+    Output("insight-tab-store", "data"),
+    Input("insight-tab", "value"),
+    prevent_initial_call=True
+)
+def store_selected_tab(tab_value):
+    return tab_value
+
 
 @callback(
     Output("grid-content", "children"),
@@ -137,29 +181,33 @@ def render_figures(tab):
                 "fontSize": "30px", "fontWeight": "600", "color": GREEN
             }), 
             # Bar Chart of Amplitudes by functionality (right)
-            html.Div(dcc.Graph(id='functionality-bar'), style={"width": "35%", "marginLeft": "1%"}), 
-            # Prompt & Image Guidance
-            html.Div(dcc.Graph(id={'type': 'graph','index': 'model-parameters'}, config={'displayModeBar': False}), style={
-                "width": "35%", "marginLeft": "5%"
-            })
+            #html.Div(dcc.Graph(id='functionality-bar'), style={"width": "35%", "marginLeft": "1%"}), 
         ]),
-
         html.Div(style={"display": "flex", "marginTop": "40px"}, children=[
-            html.Div("", style={
-                "width": "20%", "textAlign":"left", "marginLeft": "30px", 
-                "fontSize": "30px", "fontWeight": "600", "color": GREEN
-            }),
+            html.Div([
+                #html.Div("Dialogue", style={"fontSize": "30px", "fontWeight": "600", "color": GREEN}),
+                dcc.RadioItems(
+                    id="wordcloud-mode",
+                    options=[
+                        {"label": "Raw Frequency", "value": "frequency"},
+                        {"label": "Color by Depth", "value": "depth"},
+                        {"label": "TF-IDF", "value": "tfidf"}
+                    ],
+                    value="frequency",
+                    inline=True,
+                    labelStyle={"marginRight": "15px"},
+                    className="mb-3",
+                    style={"marginTop": "30px"}
+                ),
+                html.Div([
+                    html.Img(id="wordcloud-img", style={
+                        "width": "100%", "display": "block", "margin": "0px auto"
+                    })
+                ], style={"width": "50%", "marginLeft": "30px", "marginTop": "20px"})
+            ], style={"width": "20%", "marginLeft": "3%"}),
             # Existing amplitude graph
-            html.Div(id="dialogue-statistics", style={
-                "display": "flex",
-                "justifyContent": "space-around",
-                "alignItems": "center",
-                "marginTop": "30px",
-                "marginBottom": "20px",
-                "padding": "0 10%"
-            }), 
-            html.Div(dcc.Graph(id={'type': 'graph','index': 'bert-lpips-amplitude'}, config={'displayModeBar': False}),
-                    style={"width": "35%", "marginLeft": "0%"})
+            #html.Div(dcc.Graph(id={'type': 'graph','index': 'bert-lpips-amplitude'}, config={'displayModeBar': False}),
+            #        style={"width": "35%", "marginLeft": "0%"})
         ])
     ])
 
@@ -237,13 +285,13 @@ def get_functionality_percentages(chat_id):
 def pie_chart_utility(chat_id):
     values = get_functionality_percentages(chat_id) 
     labels = ["Suggestions", "Enhancement", "S + E", "No AI"]
-    colors = ["#7B002C", "#00008B", "#8B4513", "#006400"]
+    colors = pie_chart_palette
     fig = go.Figure(go.Pie(labels=labels, values=values,
                            marker_colors=colors, textinfo="label+percent"))
     fig.update_layout(
-        height=200,
-        margin=dict(t=40, b=20, l=5, r=5),
-        paper_bgcolor=BG,
+        height=165,
+        margin=dict(t=10, b=10, l=5, r=5),
+        #paper_color=BG,
         #plot_bgcolor=BG,
         font=dict(family="sans-serif", size=12),
         showlegend=False
@@ -251,7 +299,8 @@ def pie_chart_utility(chat_id):
     return fig
 
 
-def update_keywords_wordcloud(chat_id, mode):
+# def update_keywords_wordcloud(chat_id, mode):
+def update_keywords_wordcloud(chat_id, mode, tab="overall"):
     # Keyword wordcloud 
     if chat_id is None:
         raise PreventUpdate
@@ -265,12 +314,21 @@ def update_keywords_wordcloud(chat_id, mode):
 
     if df.empty:
         raise PreventUpdate
+    
+    # Shared colormap and background
+    cubehelix_cmap = sns.cubehelix_palette(start=2, rot=0, dark=0, light=.95, reverse=True, as_cmap=True)
+    #bg_color = "#fcefd9"
 
     # RAW FREQUENCY: most common words regardless of time
     if mode == 'frequency':
         all_words = pd.Series([w for words in df['relevant_words'] for w in words])
         word_freq = all_words.value_counts().to_dict()
-        wc = WordCloud(width=800, height=400, background_color="white").generate_from_frequencies(word_freq)
+        wc = WordCloud(
+            width=800, 
+            height=G_HEIGHT, 
+            background_color=Wordcloud_BG,
+            colormap=cubehelix_cmap
+            ).generate_from_frequencies(word_freq)
 
     # COLOR BY DEPTH:  words colored based on when they appeared
     elif mode == 'depth':
@@ -285,14 +343,19 @@ def update_keywords_wordcloud(chat_id, mode):
 
         def get_color_func(avg_depths):
             min_d, max_d = min(avg_depths.values()), max(avg_depths.values())
-            colormap = cm.get_cmap('coolwarm')
+            #colormap = cm.get_cmap('coolwarm')
             def color_func(word, **kwargs):
                 norm = (avg_depths.get(word, min_d) - min_d) / (max_d - min_d + 1e-5)
-                r, g, b, _ = [int(c * 255) for c in colormap(norm)]
+                r, g, b, _ = [int(c * 255) for c in cubehelix_cmap(norm)]
                 return f"rgb({r},{g},{b})"
             return color_func
 
-        wc = WordCloud(width=800, height=400, background_color="white").generate_from_frequencies(word_freq)
+        wc = WordCloud(
+                width=800, 
+                height=G_HEIGHT, 
+                background_color=Wordcloud_BG,
+                colormap=cubehelix_cmap
+                ).generate_from_frequencies(word_freq)
         wc.recolor(color_func=get_color_func(avg_depths))
 
     # TF-IDF: what makes this chat lexically unique
@@ -313,7 +376,12 @@ def update_keywords_wordcloud(chat_id, mode):
             words = vectorizer.get_feature_names_out()
             scores = tfidf_matrix[chat_idx].toarray().flatten()
             tfidf_scores = {word: scores[i] for i, word in enumerate(words) if scores[i] > 0}
-            wc = WordCloud(width=800, height=400, background_color="white").generate_from_frequencies(tfidf_scores)
+            wc = WordCloud(
+                width=800, 
+                height=G_HEIGHT, 
+                background_color=Wordcloud_BG,
+                colormap=cubehelix_cmap
+                ).generate_from_frequencies(tfidf_scores)
         else:
             raise PreventUpdate
 
@@ -353,8 +421,8 @@ def update_statistics_display(chat_id):
                 "marginTop": "5px"
             })
             ], style={
-                "width": "140px",
-                "height": "140px",
+                "width": "100px",
+                "height": "100px",
                 "borderRadius": "50%",
                 "backgroundColor": color,
                 "display": "flex",
@@ -367,8 +435,8 @@ def update_statistics_display(chat_id):
             })
 
     return [
-            create_sphere("Avg Prompt Novelty", stats["avg_prompt_novelty"], "#7B002C", margin_right=True),
-            create_sphere("Avg Image Change", stats["avg_image_change"], "#00008B", margin_right=True)
+            create_sphere("Avg Prompt Novelty", stats["avg_prompt_novelty"], GD, margin_right=True),
+            create_sphere("Avg Image Change", stats["avg_image_change"], GR, margin_right=True)
             #create_sphere("Avg Prompt Length", stats["avg_prompt_length"], "#FFEED6", margin_right=False)
         ]
 
@@ -443,11 +511,11 @@ def update_functionality_bar(chat_id):
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=df["functionality"], y=df["BERTScore"],
-        name="ΔPrompt (BERTScore)", marker_color="darkred"
+        name="ΔPrompt (BERTScore)", marker_color=GD
     ))
     fig.add_trace(go.Bar(
         x=df["functionality"], y=df["LPIPS"],
-        name="ΔPrompt (LPIPS)", marker_color="darkblue"
+        name="ΔPrompt (LPIPS)", marker_color=GR
     ))
 
     fig.update_layout(
@@ -471,11 +539,13 @@ def update_functionality_bar(chat_id):
     Output("wordcloud-img", "src"),
     Input("chat-selector", "value"),
     Input("wordcloud-mode", "value"),
+    Input("insight-tab-store", "data"),
     prevent_initial_call=True
 )
 
-def render_wordcloud(chat_id, mode):
-    return update_tab_labels(chat_id), update_keywords_wordcloud(chat_id, mode)
+def render_wordcloud(chat_id, mode, tab):
+    return update_tab_labels(chat_id), update_keywords_wordcloud(chat_id, mode, tab)
+    # return update_tab_labels(chat_id), update_keywords_wordcloud(chat_id, mode)
 
 # POPULATE FUNCTIONALITY BAR CHART 
 @callback(
@@ -532,7 +602,7 @@ def line_chart_guidances(chat_id):
                         y=df['prompt_guidance'], 
                         mode='lines+markers', 
                         name='Prompt Guidance', 
-                        line=dict(color="#7B002C", width=2),
+                        line=dict(color=GD, width=2),
                         marker=dict(symbol="circle", size=6)
                     )
                 )
@@ -542,7 +612,7 @@ def line_chart_guidances(chat_id):
                         y=df['image_guidance'], 
                         mode='lines+markers', 
                         name='Image Guidance', 
-                        line=dict(color="#00008B", width=2),
+                        line=dict(color=GR, width=2),
                         marker=dict(symbol="circle", size=6)
                      )
                 )
@@ -565,13 +635,26 @@ def line_chart_guidances(chat_id):
     return fig
 
 ## Adjust to take tab-dependent values in 
-def line_chart_change_amplitude(chat_id):
+def line_chart_change_amplitude(chat_id, tab="overall"):
     if chat_id is None:
         raise PreventUpdate
 
     with Database() as db:
+        prompts = db.fetch_prompts_by_chat(chat_id)
         bert_df = db.fetch_all_bertscore_metrics()
         lpips_df = db.fetch_all_lpips_metrics()
+
+    prompts = prompts[prompts['chat_id'] == chat_id]
+    prompts = filter_by_mode(prompts, tab)
+
+    valid_prompt_ids = prompts["id"].tolist()
+    valid_depths = prompts["depth"].tolist()
+
+    bert_df = bert_df[(bert_df["chat_id"] == chat_id) & (bert_df["depth"] > 1)]
+    lpips_df = lpips_df[(lpips_df["chat_id"] == chat_id) & (lpips_df["depth"] > 1)]
+
+    bert_df = bert_df[bert_df["prompt_id"].isin(valid_prompt_ids)]
+    lpips_df = lpips_df[lpips_df["depth"].isin(valid_depths)]
 
     # Only keep depth >= 2
     # since depth = 1 corresponds to the initial prompt and image, metrics like
@@ -589,7 +672,7 @@ def line_chart_change_amplitude(chat_id):
                         y=bert_df['bert_novelty'], 
                         mode='lines+markers', 
                         name='BERT Novelty', 
-                        line=dict(color="#7B002C", width=2),
+                        line=dict(color=GD, width=2),
                         marker=dict(symbol="circle", size=6)
                     )
                 )
@@ -599,12 +682,13 @@ def line_chart_change_amplitude(chat_id):
                         y=lpips_df['lpips'], 
                         mode='lines+markers', 
                         name='LPIPS', 
-                        line=dict(color="#00008B", width=2),
+                        line=dict(color=GR, width=2),
                         marker=dict(symbol="circle", size=6)
                      )
                 )
     fig.update_layout(
-                title="Prompt Novelty and Image Change Amplitude", 
+                # title="Prompt Novelty and Image Change Amplitude", 
+                title=f"Prompt Novelty and Image Change Amplitude ({tab.title()})",
                 height=G_HEIGHT,
                 font=dict(family="sans-serif", size=13), 
                 xaxis=dict(
@@ -625,12 +709,14 @@ def line_chart_change_amplitude(chat_id):
     Output({'type': 'graph', 'index': ALL}, 'figure'),
     #Output({'type': 'graph', 'index': 'bert-lpips-amplitude'}, 'figure'),
     Input('chat-selector', 'value'),
+    Input('insight-tab-store', 'data'),
     prevent_initial_call=True)
 
-def update_graphs(chat_id):
+def update_graphs(chat_id, tab):
     if chat_id is None:
         raise PreventUpdate
     return (
         line_chart_guidances(chat_id),
-        line_chart_change_amplitude(chat_id)
+        # line_chart_change_amplitude(chat_id)
+        line_chart_change_amplitude(chat_id, tab)
     )
