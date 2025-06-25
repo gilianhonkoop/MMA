@@ -61,25 +61,25 @@ def create_admin_layout():
         dcc.Store(id="insight-tab-store", data="overall"),
 
         # Top header
-        html.Div(
-            style={"backgroundColor": GREEN, "color": "white", "width": "100%", "padding": "40px 0px 40px 30px"},
-            children=[
-                html.Span("AI-D", style={"fontWeight": "bold", "fontSize": "35px", "marginRight": "10px"}),
-                html.Span("|", style={"margin": "0 10px", "fontSize": "35px"}),
-                html.Span("Statistics", style={"fontStyle": "italic", "fontSize": "28px"})
-            ]
-        ),
+        # html.Div(
+        #     style={"backgroundColor": GREEN, "color": "white", "width": "100%", "padding": "40px 0px 40px 30px"},
+        #     children=[
+        #         html.Span("AI-D", style={"fontWeight": "bold", "fontSize": "35px", "marginRight": "10px"}),
+        #         html.Span("|", style={"margin": "0 10px", "fontSize": "35px"}),
+        #         html.Span("Statistics", style={"fontStyle": "italic", "fontSize": "28px"})
+        #     ]
+        # ),
         # 3 COLUMNS: 20%-40%-40%
         html.Div(style={"display": "flex", "padding": "30px 50px 0 30px"}, children=[
             # COLUMN 1 - Dialogue History
             html.Div([
                 html.Div("Dialogue history", style={"fontSize": "30px", "fontWeight": "600", "color": GREEN}),
-                dbc.Button("Refresh", id="refresh-button", color="primary", className="mb-3", style={"marginTop": "10px"}),
+                dbc.Button("Refresh", id="refresh-button", color="primary", className="mb-3", style={"marginTop": "10px", 'backgroundColor': green_palette[1]}),
                 dcc.Dropdown(id="chat-selector", placeholder="Select a Chat", className="mb-3", style={"marginTop": "5px"})
             ], style={"width": "20%"}),
 
             # COLUMN 2 - Metrics 
-            html.Div(style={"width": "37%", "display": "flex", "flexDirection": "column", "marginLeft": "3%"}, children=[
+            html.Div(id="column-2", style={"width": "37%", "display": "none", "flexDirection": "column", "marginLeft": "3%"}, children=[
                 # Header: Dialogue
                 html.Div("Dialogue", style={
                     "fontSize": "30px", "fontWeight": "600", "color": GREEN, "marginBottom": "0px", "width":"48%"
@@ -101,7 +101,7 @@ def create_admin_layout():
             ]),
 
             # COLUMN 3 - Tabs, Wordcloud, Amplitude chart 
-            html.Div(style={"width": "37%", "display": "flex", "flexDirection": "column", "marginLeft": "3%"}, children=[
+            html.Div(id="column-3", style={"width": "37%", "display": "none", "flexDirection": "column", "marginLeft": "3%"}, children=[
                 # Tabs header
                 html.Div([
                     html.Div("Dialogue features", style={
@@ -155,6 +155,22 @@ def create_admin_layout():
             ])
         ])
     ])
+
+@callback(
+    [Output("column-2", "style"), Output("column-3", "style")],
+    Input("chat-selector", "value"),
+    prevent_initial_call=True
+)
+def toggle_columns_visibility(chat_id):
+    if chat_id is None:
+        column_2_style = {"width": "37%", "display": "none", "flexDirection": "column", "marginLeft": "3%"}
+        column_3_style = {"width": "37%", "display": "none", "flexDirection": "column", "marginLeft": "3%"}
+    else:
+        column_2_style = {"width": "37%", "display": "flex", "flexDirection": "column", "marginLeft": "3%"}
+        column_3_style = {"width": "37%", "display": "flex", "flexDirection": "column", "marginLeft": "3%"}
+    
+    return column_2_style, column_3_style
+
 
 @callback(
     Output("insight-tab-store", "data"),
@@ -609,7 +625,7 @@ def update_pie_chart(chat_id):
     Output("chat-selector", "options"),
     Input("refresh-button", "n_clicks"),
     State('app-user-info', 'data'),
-    prevent_initial_call=True
+    # prevent_initial_call=True
 )
 def populate_chat_dropdown(n_clicks, user_info):
     user_id = user_info.get("user_id")

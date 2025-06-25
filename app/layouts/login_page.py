@@ -3,10 +3,14 @@ import dash_bootstrap_components as dbc
 from dash.exceptions import PreventUpdate
 from db import Database
 
+GREEN = "#132a13"
+BG = "rgba(177, 183, 143, 0.3)"
+
+
 def create_login_layout():
     return html.Div([
         html.Div([
-            html.H1("Image Tree", className="text-center mb-4", style={'color': '#38432E', 'fontWeight': 'bold'}),
+            html.H1("Image Tree", className="text-center mb-4", style={'color': GREEN, 'fontWeight': 'bold'}),
             dbc.Card([
                 dbc.CardBody([
                     dbc.Tabs([
@@ -17,24 +21,24 @@ def create_login_layout():
                                     placeholder="Username", 
                                     type="text", 
                                     className="mb-3",
-                                    style={'borderColor': '#38432E'}
+                                    style={'borderColor': GREEN}
                                 ),
                                 dbc.Input(
                                     id="login-password", 
                                     placeholder="Password", 
                                     type="password", 
                                     className="mb-3",
-                                    style={'borderColor': '#38432E'}
+                                    style={'borderColor': GREEN}
                                 ),
                                 dbc.Button(
                                     "Login", 
                                     id="login-button", 
                                     className="w-100",
-                                    style={'backgroundColor': '#38432E', 'borderColor': '#38432E', 'color': 'white'}
+                                    style={'backgroundColor': GREEN, 'borderColor': GREEN, 'color': 'white'}
                                 ),
                                 html.Div(id="login-error", className="text-danger mt-3")
                             ], className="p-3"),
-                        ], label="Login", tab_style={'color': '#38432E'}, active_tab_style={'color': '#38432E', 'fontWeight': 'bold'}),
+                        ], label="Login", tab_style={'color': GREEN}, active_tab_style={'color': GREEN, 'fontWeight': 'bold'}),
                         dbc.Tab([
                             html.Div([
                                 dbc.Input(
@@ -42,35 +46,35 @@ def create_login_layout():
                                     placeholder="Username", 
                                     type="text", 
                                     className="mb-3",
-                                    style={'borderColor': '#38432E'}
+                                    style={'borderColor': GREEN}
                                 ),
                                 dbc.Input(
                                     id="register-password", 
                                     placeholder="Password", 
                                     type="password", 
                                     className="mb-3",
-                                    style={'borderColor': '#38432E'}
+                                    style={'borderColor': GREEN}
                                 ),
                                 dbc.Input(
                                     id="register-confirm-password", 
                                     placeholder="Confirm Password", 
                                     type="password", 
                                     className="mb-3",
-                                    style={'borderColor': '#38432E'}
+                                    style={'borderColor': GREEN}
                                 ),
                                 dbc.Button(
                                     "Register", 
                                     id="register-button", 
                                     className="w-100",
-                                    style={'backgroundColor': '#38432E', 'borderColor': '#38432E', 'color': 'white'}
+                                    style={'backgroundColor': GREEN, 'borderColor': GREEN, 'color': 'white'}
                                 ),
                                 html.Div(id="register-error", className="text-danger mt-3"),
                                 html.Div(id="register-success", className="text-success mt-3")
                             ], className="p-3"),
-                        ], label="Register", tab_style={'color': '#38432E'}, active_tab_style={'color': '#38432E', 'fontWeight': 'bold'}),
-                    ], style={'borderColor': '#38432E'}),
+                        ], label="Register", tab_style={'color': GREEN}, active_tab_style={'color': GREEN, 'fontWeight': 'bold'}),
+                    ], style={'borderColor': GREEN}),
                 ]),
-            ], className="shadow", style={'backgroundColor': '#FFEED6', 'border': '2px solid #38432E', 'maxWidth': '450px', 'width': '100%'}),
+            ], className="shadow", style={'border': '2px solid #38432E', 'maxWidth': '450px', 'width': '100%'}),
         ], style={
             'position': 'absolute',
             'top': '50%',
@@ -82,7 +86,7 @@ def create_login_layout():
         }),
         
         dcc.Store(id="user-info"),
-    ], style={'backgroundColor': '#FFEED6', 'minHeight': '100vh', 'height': '100vh', 'position': 'relative'})
+    ], style={'minHeight': '100vh', 'height': '100vh', 'position': 'relative'})
 
 @callback(
     [Output("user-info", "data"),

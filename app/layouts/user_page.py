@@ -17,6 +17,10 @@ from db.database import Database
 from modules.model_instances import get_vlm_instance, get_image_transformer_instance
 
 
+GREEN = "#132a13"
+BG = "rgba(177, 183, 143, 0.3)"
+
+
 # Tree Visualization
 def create_tree_visualization():
     """Creates a graph layout using dagre (a directed acyclic graph layout). 
@@ -103,7 +107,7 @@ def create_chat_sidebar():
         dbc.Button(
             "New Chat",
             id="new-chat-button",
-            style={'backgroundColor': '#FFEED6', 'borderColor': '#FFEED6', 'color': '#38432E'},
+            style={'backgroundColor': BG, 'borderColor': BG, 'color': GREEN},
             className="mb-3 w-100",
             size="sm"
         ),
@@ -118,7 +122,7 @@ def create_chat_sidebar():
             style={'height': 'calc(100vh - 260px)', 'overflowY': 'auto'}
         )
     ], style={
-        'backgroundColor': '#38432E',
+        'backgroundColor': GREEN,
         'padding': '15px',
         'height': 'calc(100vh - 60px)',
         'position': 'fixed',
@@ -139,7 +143,7 @@ def create_user_layout():
                 html.Div(
                     id="tree-graph-container",
                     children=create_tree_visualization(),
-                    style={"display": "none", "height": "100%", "backgroundColor": "#FFEED6", "padding": "10px", "width": "100%"}
+                    style={"display": "none", "height": "100%", "padding": "10px", "width": "100%"}
                 ),
                 
                 html.Div([
@@ -162,8 +166,8 @@ def create_user_layout():
                         },
                         multiple=False
                     ),
-                ], id="upload-container", style={"backgroundColor": "#FFEED6", "padding": "20px", "height": "100%", "display": "flex", "flexDirection": "column", "justifyContent": "center"}),
-            ], style={"flex": "1", "backgroundColor": "#FFEED6", "minHeight": "0", "overflow": "hidden"}),
+                ], id="upload-container", style={"padding": "20px", "height": "100%", "display": "flex", "flexDirection": "column", "justifyContent": "center"}),
+            ], style={"flex": "1", "minHeight": "0", "overflow": "hidden"}),
             
             html.Div([
                 html.Div([
@@ -200,7 +204,7 @@ def create_user_layout():
                         )
                     ),
                     dbc.Button("Generate Images", id="submit-button", disabled=True, 
-                              style={'backgroundColor': '#38432E', 'borderColor': '#38432E', 'color': 'white'}),
+                              style={'backgroundColor': GREEN, 'borderColor': GREEN, 'color': 'white'}),
                 ], className="mb-3"),
                 
                 # Guidance controls
@@ -252,7 +256,7 @@ def create_user_layout():
                 
                 dbc.Spinner(html.Div(id="loading-output")),
             ], style={
-                "backgroundColor": "#FFEED6", 
+                # "backgroundColor": BG, 
                 "padding": "20px", 
                 "minHeight": "180px",
                 "borderTop": "1px solid #ccc",
@@ -367,7 +371,7 @@ def process_uploaded_image(contents, user_info):
     db.close()
     
     return (
-        {'display': 'block', 'height': '100%', 'backgroundColor': '#FFEED6', 'padding': '10px', 'width': '100%'}, 
+        {'display': 'block', 'height': '100%', 'backgroundColor': BG, 'padding': '10px', 'width': '100%'}, 
         {'display': 'none'},
         contents,
         cy_elements,
@@ -932,7 +936,7 @@ def load_existing_chat(n_clicks_list, user_info):
         }
         
         return (
-            {'display': 'block', 'height': '100%', 'backgroundColor': '#FFEED6', 'padding': '10px', 'width': '100%'},
+            {'display': 'block', 'height': '100%', 'backgroundColor': BG, 'padding': '10px', 'width': '100%'},
             {'display': 'none'}, 
             cy_elements,
             tree_data,

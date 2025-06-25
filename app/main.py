@@ -13,6 +13,9 @@ print("Initializing AI models...")
 init_models()
 print("AI models initialized successfully!")
 
+GREEN = "#132a13"
+BG = "rgba(177, 183, 143, 0.3)"
+
 app = dash.Dash(__name__, 
                 external_stylesheets=[dbc.themes.BOOTSTRAP],
                 suppress_callback_exceptions=True)
@@ -20,7 +23,7 @@ app = dash.Dash(__name__,
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
     dcc.Store(id="app-user-info", storage_type="session", data=None),
-    html.Div(id='navbar-container', style={'position': 'fixed', 'top': '0', 'left': '0', 'right': '0', 'zIndex': '999', 'height': '60px', 'backgroundColor': '#38432E'}),
+    html.Div(id='navbar-container', style={'position': 'fixed', 'top': '0', 'left': '0', 'right': '0', 'zIndex': '999', 'height': '60px', 'backgroundColor': GREEN}),
     html.Div(id='page-content', style={'paddingTop': '60px'})
 ], style={'height': '100vh'})
 
@@ -38,7 +41,7 @@ def update_navbar(user_info):
                 dbc.NavItem(dbc.NavLink(f"Logged in as {user_info.get('username')}", href="#")),
                 dbc.NavItem(dbc.NavLink("Logout", href="/logout", id="logout-link")),
             ], className="ms-auto", navbar=True)
-        ], color='#38432E', dark=True, style={'backgroundColor': '#38432E', 'borderColor': '#38432E', 'height': '100%', 'margin': '0', 'borderRadius': '0', 'paddingLeft': '20px', 'paddingRight': '20px'})
+        ], color=GREEN, dark=True, style={'backgroundColor': GREEN, 'borderColor': GREEN, 'height': '100%', 'margin': '0', 'borderRadius': '0', 'paddingLeft': '20px', 'paddingRight': '20px'})
     return html.Div()
 
 @callback(
