@@ -3,7 +3,7 @@ from dash import dcc, html, callback, Input, Output
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 
-from layouts.draft_admin_side import create_admin_layout
+from layouts.admin_side import create_admin_layout
 
 # Initialize Dash app with Bootstrap theme
 app = dash.Dash(__name__, 
@@ -43,3 +43,4 @@ def display_page(pathname):
 if __name__ == '__main__':
     cyto.load_extra_layouts()
     app.run_server(debug=True)
+    #app.run(debug=True)
