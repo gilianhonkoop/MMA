@@ -66,7 +66,7 @@ def create_admin_layout():
             children=[
                 html.Span("AI-D", style={"fontWeight": "bold", "fontSize": "35px", "marginRight": "10px"}),
                 html.Span("|", style={"margin": "0 10px", "fontSize": "35px"}),
-                html.Span(" Developer", style={"fontStyle": "italic", "fontSize": "28px"})
+                html.Span("Statistics", style={"fontStyle": "italic", "fontSize": "28px"})
             ]
         ),
         # 3 COLUMNS: 20%-40%-40%
@@ -137,7 +137,7 @@ def create_admin_layout():
                         ],
                         value="frequency",
                         inline=True,
-                        labelStyle={"marginRight": "15px", "fontSize": "20px"},
+                        labelStyle={"marginRight": "15px", "fontSize": "18px"},
                         className="mb-3",
                         style={"marginTop": "5px"}
                     )
@@ -193,7 +193,7 @@ def render_figures(tab):
                     ],
                     value="frequency",
                     inline=True,
-                    labelStyle={"marginRight": "15px", "fontSize": "20px"},
+                    labelStyle={"marginRight": "15px", "fontSize": "18px"},
                     className="mb-3",
                     style={"marginTop": "30px"}
                 ),
@@ -292,6 +292,7 @@ def pie_chart_utility(chat_id):
         #paper_color=BG,
         #plot_bgcolor=BG,
         font=dict(family="sans-serif", size=12),
+        legend=dict(font=dict(size=12)),
         showlegend=False
     )
     return fig
@@ -455,13 +456,37 @@ def update_tab_labels(chat_id):
 
     perc_sugg, perc_enh, perc_sugg_enh, perc_no_ai = get_functionality_percentages(chat_id)
 
+    # return [
+    #     dcc.Tab(label="Overall", value="overall"),
+    #     dcc.Tab(label=f"Suggestions", value="suggestions"),
+    #     dcc.Tab(label=f"Enhancement", value="enhancement"),
+    #     dcc.Tab(label=f"Suggestions & Enhancement", value="both"),
+    #     dcc.Tab(label=f"No AI", value="noai"),
+    # ]
+    common_tab_style = {
+    "fontSize": "14px",
+    "padding": "12px 16px",
+    "height": "auto",
+    "whiteSpace": "normal",  # allows wrapping
+    "overflow": "visible",   # avoids clipping
+    "textAlign": "center"}
+
     return [
-        dcc.Tab(label="Overall", value="overall"),
-        dcc.Tab(label=f"Suggestions", value="suggestions"),
-        dcc.Tab(label=f"Enhancement", value="enhancement"),
-        dcc.Tab(label=f"Suggestions & Enhancement", value="both"),
-        dcc.Tab(label=f"No AI", value="noai"),
+    dcc.Tab(label="Overall", value="overall", style=common_tab_style, selected_style=common_tab_style),
+    dcc.Tab(label="Suggestions", value="suggestions", style=common_tab_style, selected_style=common_tab_style),
+    dcc.Tab(label="Enhancement", value="enhancement", style=common_tab_style, selected_style=common_tab_style),
+    dcc.Tab(label="Suggestions & Enhancement", value="both", style=common_tab_style, selected_style=common_tab_style),
+    dcc.Tab(label="No AI", value="noai", style=common_tab_style, selected_style=common_tab_style),
     ]
+
+
+    # return [
+    # dcc.Tab(label="Overall", value="overall", style={"fontSize": "18px"}),
+    # dcc.Tab(label="Suggestions", value="suggestions", style={"fontSize": "18px"}),
+    # dcc.Tab(label="Enhancement", value="enhancement", style={"fontSize": "18px"}),
+    # dcc.Tab(label="Suggestions & Enhancement", value="both", style={"fontSize": "18px"}),
+    # dcc.Tab(label="No AI", value="noai", style={"fontSize": "18px"}),
+    # ]
 
 def update_functionality_bar(chat_id):
     if chat_id is None:
@@ -527,16 +552,20 @@ def update_functionality_bar(chat_id):
     ))
 
     fig.update_layout(
-        title="Mean Prompt Novelty, mean Image Change per dialogue feature",
+        # title="Mean Prompt Novelty and Image Change per dialogue feature",
+            title={"text": "Mean Prompt Novelty and Image Change<br>per dialogue feature",
+                   "x": 0.5,  # Center horizontally
+                   "xanchor": "center",  # Anchor in the middle
+                   "font": dict(size=16)},
         xaxis_title="Feature",
         yaxis_title="Score",
         barmode="group",
         plot_bgcolor=BG,
         paper_bgcolor=BG,
         margin=dict(t=50, b=30, l=40, r=40),
-        font=dict(family="sans-serif", size=16), 
-        height=G_HEIGHT, 
-        title_font_size=20
+        font=dict(family="sans-serif", size=14), 
+        legend=dict(font=dict(size=12)),
+        height=G_HEIGHT
     )
 
     return fig
@@ -627,7 +656,8 @@ def line_chart_guidances(chat_id):
     fig.update_layout(
                 title="Prompt and Image Guidance over Generations", 
                 height=G_HEIGHT,
-                font=dict(family="sans-serif", size=16), 
+                font=dict(family="sans-serif", size=14), 
+                legend=dict(font=dict(size=12)),
                 xaxis=dict(
                     title="Generation",
                     tickmode="linear",
@@ -638,7 +668,7 @@ def line_chart_guidances(chat_id):
                 paper_bgcolor=BG,
                 plot_bgcolor=BG,
                 margin=dict(t=50, b=30, l=40, r=40),
-                title_font_size=20
+                title_font_size=16
                 )
     return fig
 
@@ -698,7 +728,8 @@ def line_chart_change_amplitude(chat_id, tab="overall"):
                 # title="Prompt Novelty and Image Change Amplitude", 
                 title=f"Prompt Novelty and Image Change Amplitude ({tab.title()})",
                 height=G_HEIGHT,
-                font=dict(family="sans-serif", size=16), 
+                font=dict(family="sans-serif", size=14), 
+                legend=dict(font=dict(size=12)),
                 xaxis=dict(
                     title="Generation",
                     tickmode="linear",
@@ -709,7 +740,7 @@ def line_chart_change_amplitude(chat_id, tab="overall"):
                 paper_bgcolor=BG,
                 plot_bgcolor=BG,
                 margin=dict(t=50, b=30, l=40, r=40),
-                title_font_size=20
+                title_font_size=16,
                 )
     return fig
 

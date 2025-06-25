@@ -5,7 +5,7 @@
 ```
 ssh <user>@snellius.surf.nl 
 ```
-
+scur0279
 ### Setup project
 ```
 cd MMA
@@ -30,6 +30,8 @@ python app/main.py
 ```
 ssh -L 8050:127.0.0.1:8050 -J <user>@snellius.surf.nl <user>@<node hostname>
 ```
+
+ssh -L 8050:127.0.0.1:8050 -J scur0279@snellius.surf.nl scur0279@gcn54
 
 After the Dash server is running open http://127.0.0.1:8050/ on your browser.
 

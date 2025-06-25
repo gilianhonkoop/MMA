@@ -16,7 +16,8 @@ app.layout = html.Div([
     dcc.Store(id="app-user-info", storage_type="session", data={"username": "admin", "user_id": 1}),
     html.Div(id='navbar-container', style={'position': 'fixed', 'top': '0', 'left': '0', 'right': '0', 'zIndex': '999', 'height': '60px', 'backgroundColor': '#38432E'}),
     html.Div(id='page-content', style={'paddingTop': '60px'})
-], style={'height': '100vh', 'overflow': 'hidden'})
+], style={'height': '100vh'})
+# style={'height': '100vh', 'overflow': 'hidden'})
 
 # Dummy navbar (auto-logged in as admin for local testing)
 @callback(
