@@ -1021,3 +1021,15 @@ class Database:
         except Exception as e:
             print(f"Error deleting image from database: {e}")
             return False
+        
+    def delete_images_by_chat(self, chat_id):
+        query = "DELETE FROM images WHERE chat_id = ?"
+        self.execute_query(query, (chat_id,))
+
+    def delete_prompts_by_chat(self, chat_id):
+        query = "DELETE FROM prompts WHERE chat_id = ?"
+        self.execute_query(query, (chat_id,))
+
+    def delete_chat(self, chat_id):
+        query = "DELETE FROM chats WHERE id = ?"
+        self.execute_query(query, (chat_id,))
