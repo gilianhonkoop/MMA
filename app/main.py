@@ -37,7 +37,7 @@ def update_navbar(user_info):
             dbc.NavbarBrand("Image Tree", className="me-auto"),
             dbc.Nav([
                 dbc.NavItem(dbc.NavLink("Home", href="/")),
-                dbc.NavItem(dbc.NavLink("Statistics", href="/admin")),
+                dbc.NavItem(dbc.NavLink("Statistics", href="/statistics")),
                 dbc.NavItem(dbc.NavLink(f"Logged in as {user_info.get('username')}", href="#")),
                 dbc.NavItem(dbc.NavLink("Logout", href="/logout", id="logout-link")),
             ], className="ms-auto", navbar=True)
@@ -60,7 +60,7 @@ def display_page(pathname, user_info):
     if pathname == '/login' or pathname == '/register' or pathname == '/':
         return create_user_layout()
     
-    if pathname == '/admin':
+    if pathname == '/statistics':
         return create_admin_layout()
     
     return create_user_layout()

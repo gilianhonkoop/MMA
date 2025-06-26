@@ -26,9 +26,9 @@ app.layout = html.Div([
 )
 def update_navbar(user_info):
     return dbc.Navbar([
-        dbc.NavbarBrand("Admin Dashboard", className="me-auto"),
+        dbc.NavbarBrand("Statistics Dashboard", className="me-auto"),
         dbc.Nav([
-            dbc.NavItem(dbc.NavLink("Statistics", href="/admin")),
+            dbc.NavItem(dbc.NavLink("Statistics", href="/statistics")),
         ], className="ms-auto", navbar=True)
     ], color='#38432E', dark=True)
 
