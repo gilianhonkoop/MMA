@@ -15,8 +15,6 @@ import base64
 import io
 import seaborn as sns
 
-# app = dash.Dash(__name__)
-# server = app.server
 
 # In order to filter line_chart_change_amplitude and update_keywords_wordcloudby
 # by the modes, we implement get_mode and filter_by_mode
@@ -38,39 +36,33 @@ def filter_by_mode(df, mode):
     df['interaction_mode'] = df.apply(get_mode, axis=1)
     return df[df['interaction_mode'] == mode]
 
+# Need to be able to filter by chat or just by user in order to have a "ALL" chat
+def filter_by_chat_or_user(df, chat_id, user_id):
+    if chat_id == "ALL":
+        return df[df["user_id"] == user_id]
+    return df[df["chat_id"] == chat_id]
 
+# Recompute LPIPS for all user's chats
+def recompute_lpips_for_user(user_id):
+    with Database() as db:
+        chats = db.fetch_chats_by_user(user_id)
+    for chat_id in chats['id'].tolist():
+        recompute_lpips_for_chat(chat_id)
 
-# theme colours 
+# Theme colours 
 green_palette = ["#132a13","#31572c","#4f772d","#90a955","#ecf39e"]
 pie_chart_palette = ["#adb5bd", "#6c757d","#495057","#f3f3f3"]
 GREEN = green_palette[0]
 BG = "rgba(177, 183, 143, 0.3)"
 Wordcloud_BG = "#e9edd8"
 GD = green_palette[0] # graph dark -- prompt change 
-GR = "#bc4749"# graph red -- image change 
+GR = "#bc4749" # graph red -- image change 
 G_HEIGHT = 350
-# Instead of a pie chart, inserting percentages into tabs 
-#perc_sugg = str(0) 
-#perc_enh = str(0)
-#perc_sugg_enh = str(0)
-#perc_no_ai = str(0)
-#static_heatmap = go.Figure()
-#static_bar_chart = go.Figure()
 
 def create_admin_layout():
     return html.Div([
         dcc.Store(id="insight-tab-store", data="overall"),
 
-        # Top header
-        # html.Div(
-        #     style={"backgroundColor": GREEN, "color": "white", "width": "100%", "padding": "40px 0px 40px 30px"},
-        #     children=[
-        #         html.Span("AI-D", style={"fontWeight": "bold", "fontSize": "35px", "marginRight": "10px"}),
-        #         html.Span("|", style={"margin": "0 10px", "fontSize": "35px"}),
-        #         html.Span("Statistics", style={"fontStyle": "italic", "fontSize": "28px"})
-        #     ]
-        # ),
-        # 3 COLUMNS: 20%-40%-40%
         html.Div(style={"display": "flex", "padding": "30px 50px 0 30px"}, children=[
             # COLUMN 1 - Dialogue History
             html.Div([
@@ -181,12 +173,10 @@ def toggle_columns_visibility(chat_id):
 def store_selected_tab(tab_value):
     return tab_value
 
-
 @callback(
     Output("grid-content", "children"),
     Input("insight-tab-store", "data")
 )
-
 
 def render_figures(tab):
     return html.Div([
@@ -195,12 +185,11 @@ def render_figures(tab):
                 "width": "20%", "textAlign":"left", "marginLeft": "30px", 
                 "fontSize": "30px", "fontWeight": "600", "color": GREEN
             }), 
-            # Bar Chart of Amplitudes by functionality (right)
-            #html.Div(dcc.Graph(id='functionality-bar'), style={"width": "35%", "marginLeft": "1%"}), 
+            
         ]),
         html.Div(style={"display": "flex", "marginTop": "40px"}, children=[
             html.Div([
-                #html.Div("Dialogue", style={"fontSize": "30px", "fontWeight": "600", "color": GREEN}),
+                
                 dcc.RadioItems(
                     id="wordcloud-mode",
                     options=[
@@ -220,47 +209,55 @@ def render_figures(tab):
                     })
                 ], style={"width": "50%", "marginLeft": "30px", "marginTop": "20px"})
             ], style={"width": "20%", "marginLeft": "3%"}),
-            # Existing amplitude graph
-            #html.Div(dcc.Graph(id={'type': 'graph','index': 'bert-lpips-amplitude'}, config={'displayModeBar': False}),
-            #        style={"width": "35%", "marginLeft": "0%"})
         ])
     ])
 
 
 ### STATIC ELEMENTS 
-def calculate_average_prompt_novelty(chat_id):
+# Prompt Novelty
+# def calculate_average_prompt_novelty(chat_id):
+def calculate_average_prompt_novelty(chat_id, user_id):
     if chat_id is None:
         raise PreventUpdate
 
     with Database() as db:
-        bert_df = db.fetch_all_bertscore_metrics()
+        df = db.fetch_all_bertscore_metrics()
 
-    df = bert_df[bert_df['chat_id'] == chat_id]
+    df = filter_by_chat_or_user(df, chat_id, user_id)
+    # df = df[df['chat_id'] == chat_id]
+
     if df.empty:
         return 0.0
 
     return round(df['bert_novelty'].mean(), 3)
 
-def calculate_average_image_change(chat_id):
+# Image Novelty/Change
+# def calculate_average_image_change(chat_id):
+def calculate_average_image_change(chat_id, user_id):
     if chat_id is None:
         raise PreventUpdate
 
     with Database() as db:
-        lpips_df = db.fetch_all_lpips_metrics()
+        df = db.fetch_all_lpips_metrics()
 
-    df = lpips_df[lpips_df['chat_id'] == chat_id]
+    df = filter_by_chat_or_user(df, chat_id, user_id)
+    # df = df[df['chat_id'] == chat_id]
     if df.empty:
         return 0.0
 
     return round(df['lpips'].mean(), 3)
 
-
-def calculate_average_prompt_length(chat_id):
+# Prompt Length
+# def calculate_average_prompt_length(chat_id):
+def calculate_average_prompt_length(chat_id, user_id):
     if chat_id is None:
         raise PreventUpdate
 
     with Database() as db:
-        prompts = db.fetch_prompts_by_chat(chat_id)
+        # prompts = db.fetch_prompts_by_chat(chat_id)
+        prompts = db.fetch_prompts_by_user(user_id)
+
+    prompts = filter_by_chat_or_user(prompts, chat_id, user_id)
 
     if prompts.empty or 'text' not in prompts.columns:
         return 0.0
@@ -268,37 +265,78 @@ def calculate_average_prompt_length(chat_id):
     prompt_lengths = prompts['text'].dropna().apply(lambda t: len(t.split()))
     return round(prompt_lengths.mean(), 1)
 
-### 
-def calculate_summary_statistics(chat_id):
+# Prompt novelty, image change and prompt length
+# def calculate_summary_statistics(chat_id):
+#     return {
+#         "avg_prompt_novelty": calculate_average_prompt_novelty(chat_id),
+#         "avg_image_change": calculate_average_image_change(chat_id),
+#         "avg_prompt_length": calculate_average_prompt_length(chat_id)
+#     }
+
+def calculate_summary_statistics(chat_id, user_id):
     return {
-        "avg_prompt_novelty": calculate_average_prompt_novelty(chat_id),
-        "avg_image_change": calculate_average_image_change(chat_id),
-        "avg_prompt_length": calculate_average_prompt_length(chat_id)
+        "avg_prompt_novelty": calculate_average_prompt_novelty(chat_id, user_id),
+        "avg_image_change": calculate_average_image_change(chat_id, user_id),
+        "avg_prompt_length": calculate_average_prompt_length(chat_id, user_id)
     }
 
-### 
 
-def get_functionality_percentages(chat_id):
+### Pie Chart Functionality
+# Get the percentages for each of the functionalities
+# def get_functionality_percentages(chat_id):
+def get_functionality_percentages(chat_id, user_id):
     if chat_id is None:
         raise PreventUpdate
 
     with Database() as db:
         df = db.fetch_all_functionality_metrics()
 
-    df = df[df['chat_id'] == chat_id]
+    # df = df[df['chat_id'] == chat_id]
+    df = filter_by_chat_or_user(df, chat_id, user_id)
     if df.empty:
         raise PreventUpdate
 
-    row = df.iloc[0]
-    return (
-        str(round(row['used_suggestion_pct'], 1)),
-        str(round(row['used_enhancement_pct'], 1)),
-        str(round(row['used_both_pct'], 1)),
-        str(round(row['no_ai_pct'], 1))
-    )
+    if chat_id == "ALL":
+        with Database() as db:
+            prompt_counts = db.fetch_prompts_by_user(user_id)[['chat_id']]
+        prompt_counts = prompt_counts.groupby('chat_id').size().rename('num_prompts').reset_index()
+        df = df.merge(prompt_counts, on='chat_id', how='left')
+        df = df.fillna({'num_prompts': 0})
+        total = df['num_prompts'].sum()
 
-def pie_chart_utility(chat_id):
-    values = get_functionality_percentages(chat_id) 
+        if total == 0:
+            return ("0", "0", "0", "0")
+
+        def weighted_avg(col):
+            return (df[col] * df['num_prompts']).sum() / total
+
+        return (
+            str(round(weighted_avg('used_suggestion_pct'), 1)),
+            str(round(weighted_avg('used_enhancement_pct'), 1)),
+            str(round(weighted_avg('used_both_pct'), 1)),
+            str(round(weighted_avg('no_ai_pct'), 1)),)
+    
+    elif chat_id != "ALL":
+        row = df.iloc[0]
+        return (
+            str(round(row['used_suggestion_pct'], 1)),
+            str(round(row['used_enhancement_pct'], 1)),
+            str(round(row['used_both_pct'], 1)),
+            str(round(row['no_ai_pct'], 1)))
+
+    # row = df.iloc[0]
+    # return (
+    #     str(round(row['used_suggestion_pct'], 1)),
+    #     str(round(row['used_enhancement_pct'], 1)),
+    #     str(round(row['used_both_pct'], 1)),
+    #     str(round(row['no_ai_pct'], 1))
+    # )
+
+# View the Percentages of each Functionality as a Pie Chart
+# def pie_chart_utility(chat_id):
+#     values = get_functionality_percentages(chat_id) 
+def pie_chart_utility(chat_id, user_id):
+    values = get_functionality_percentages(chat_id, user_id)
     labels = ["Suggestions", "Enhancement", "S + E", "No AI"]
     colors = pie_chart_palette
     fig = go.Figure(go.Pie(labels=labels, values=values,
@@ -306,8 +344,6 @@ def pie_chart_utility(chat_id):
     fig.update_layout(
         height=165,
         margin=dict(t=10, b=10, l=5, r=5),
-        #paper_color=BG,
-        #plot_bgcolor=BG,
         font=dict(family="sans-serif", size=12),
         legend=dict(font=dict(size=12)),
         showlegend=False
@@ -315,27 +351,37 @@ def pie_chart_utility(chat_id):
     return fig
 
 
-# def update_keywords_wordcloud(chat_id, mode):
-def update_keywords_wordcloud(chat_id, mode, tab="overall"):
-    # Keyword wordcloud 
+### The Keyword wordcloud
+# def update_keywords_wordcloud(chat_id, mode, tab="overall"):
+def update_keywords_wordcloud(chat_id, user_id, mode, tab="overall"):
     if chat_id is None:
         raise PreventUpdate
 
     with Database() as db:
         df = db.fetch_all_prompt_word_metrics()
-        prompts_df = db.fetch_prompts_by_chat(chat_id)
-    df = df.merge(
-        prompts_df[['id', 'used_suggestion', 'is_enhanced']],
-        left_on='prompt_id', right_on='id', how='left')
+        # prompts_df = db.fetch_prompts_by_chat(chat_id)
+        if chat_id == "ALL":
+            prompts_df = db.fetch_prompts_by_user(user_id)
+        else:
+            prompts_df = db.fetch_prompts_by_chat(chat_id)
+    
+    df_merge = df.merge(
+    prompts_df[['id', 'chat_id', 'used_suggestion', 'is_enhanced']],
+    left_on='prompt_id', right_on='id', how='inner')
+    # assert (df_merge["chat_id_x"] == df_merge["chat_id_y"]).all()
+    df = df_merge.drop(columns=["chat_id_x"], errors="ignore") \
+       .rename(columns={"chat_id_y": "chat_id"})
+    df = filter_by_chat_or_user(df, chat_id, user_id)
+    df = df.dropna(subset=['relevant_words', 'depth'])
+    # df = df.merge(
+    #     prompts_df[['id', 'used_suggestion', 'is_enhanced']],
+    #     left_on='prompt_id', right_on='id', how='left')
     # df = df[df['chat_id'] == chat_id].dropna(subset=['relevant_words', 'depth'])
-    df = df[df['chat_id'] == chat_id].dropna(subset=['relevant_words', 'depth'])
     df['used_suggestion'] = df['used_suggestion'].astype(bool)
     df['is_enhanced'] = df['is_enhanced'].astype(bool)
     df['interaction_mode'] = df.apply(get_mode, axis=1)
     if tab != "overall":
         df = df[df['interaction_mode'] == tab]
-    # If any row contains an unexpected format (e.g., not a string), this will raise an error. 
-    # need to run to check if error is raised
     df['relevant_words'] = df['relevant_words'].apply(lambda s: s.split(','))
 
     if df.empty:
@@ -343,7 +389,6 @@ def update_keywords_wordcloud(chat_id, mode, tab="overall"):
     
     # Shared colormap and background
     cubehelix_cmap = sns.cubehelix_palette(start=2, rot=0, dark=0, light=.95, reverse=True, as_cmap=True)
-    #bg_color = "#fcefd9"
 
     # RAW FREQUENCY: most common words regardless of time
     if mode == 'frequency':
@@ -420,19 +465,30 @@ def update_keywords_wordcloud(chat_id, mode, tab="overall"):
 
     return f"data:image/png;base64,{encoded_image}"
 
+
+# Creates the Spheres which are needed for visualizing prompt novelty and image change
 @callback(
     Output("dialogue-statistics", "children"),
     Input("chat-selector", "value"),
+    State('app-user-info', 'data'),
     prevent_initial_call=True
 )
-def update_statistics_display(chat_id):
+# def update_statistics_display(chat_id):
+def update_statistics_display(chat_id, user_info):
     if chat_id is None:
         raise PreventUpdate
     
+    user_id = user_info.get("user_id")
+    
     # Recompute LPIPS records before visualizing anything
-    recompute_lpips_for_chat(chat_id)
+    # recompute_lpips_for_chat(chat_id)
+    if chat_id == "ALL":
+        recompute_lpips_for_user(user_id)
+    else:
+        recompute_lpips_for_chat(chat_id)
 
-    stats = calculate_summary_statistics(chat_id)
+    # stats = calculate_summary_statistics(chat_id)
+    stats = calculate_summary_statistics(chat_id, user_id)
 
     def create_sphere(label, value, color, margin_right=False):
         return html.Div([
@@ -470,19 +526,14 @@ def update_statistics_display(chat_id):
         ]
 
 
-def update_tab_labels(chat_id):
+# This changes the tabs when clicked on 
+# def update_tab_labels(chat_id):
+def update_tab_labels(chat_id, user_id):
     if chat_id is None:
         raise PreventUpdate
 
-    perc_sugg, perc_enh, perc_sugg_enh, perc_no_ai = get_functionality_percentages(chat_id)
+    perc_sugg, perc_enh, perc_sugg_enh, perc_no_ai = get_functionality_percentages(chat_id, user_id)
 
-    # return [
-    #     dcc.Tab(label="Overall", value="overall"),
-    #     dcc.Tab(label=f"Suggestions", value="suggestions"),
-    #     dcc.Tab(label=f"Enhancement", value="enhancement"),
-    #     dcc.Tab(label=f"Suggestions & Enhancement", value="both"),
-    #     dcc.Tab(label=f"No AI", value="noai"),
-    # ]
     common_tab_style = {
     "fontSize": "14px",
     "padding": "12px 16px",
@@ -499,25 +550,35 @@ def update_tab_labels(chat_id):
     dcc.Tab(label="No AI", value="noai", style=common_tab_style, selected_style=common_tab_style),
     ]
 
-
-    # return [
-    # dcc.Tab(label="Overall", value="overall", style={"fontSize": "18px"}),
-    # dcc.Tab(label="Suggestions", value="suggestions", style={"fontSize": "18px"}),
-    # dcc.Tab(label="Enhancement", value="enhancement", style={"fontSize": "18px"}),
-    # dcc.Tab(label="Suggestions & Enhancement", value="both", style={"fontSize": "18px"}),
-    # dcc.Tab(label="No AI", value="noai", style={"fontSize": "18px"}),
-    # ]
-
-def update_functionality_bar(chat_id):
+# This returns the Prompt/Image Change Amplitude Chart
+# def update_functionality_bar(chat_id):
+def update_functionality_bar(chat_id, user_id):
     if chat_id is None:
         return go.Figure()
+    
+    # Recompute LPIPS records before visualizing anything
+    # recompute_lpips_for_chat(chat_id)
+    if chat_id == "ALL":
+        recompute_lpips_for_user(user_id)
+    else:
+        recompute_lpips_for_chat(chat_id)
+
 
     with Database() as db:
-        prompts = db.fetch_prompts_by_chat(chat_id)
-        bert = db.fetch_bertscore_by_chat(chat_id)
-        lpips = db.fetch_lpips_by_chat(chat_id)
+        prompts = db.fetch_prompts_by_user(user_id)
+        bert = db.fetch_all_bertscore_metrics()
+        lpips = db.fetch_all_lpips_metrics()
 
-    prompts = prompts.copy()
+        # prompts = db.fetch_prompts_by_chat(chat_id)
+        # bert = db.fetch_bertscore_by_chat(chat_id)
+        # lpips = db.fetch_lpips_by_chat(chat_id)
+
+    # Filter each dataframe down to what we need
+    prompts = filter_by_chat_or_user(prompts, chat_id, user_id)
+    bert = filter_by_chat_or_user(bert, chat_id, user_id)
+    lpips = filter_by_chat_or_user(lpips, chat_id, user_id)
+
+    # Preprocessing
     prompts["used_suggestion"] = prompts["used_suggestion"].astype(bool)
     prompts["is_enhanced"] = prompts["is_enhanced"].astype(bool)
 
@@ -532,20 +593,6 @@ def update_functionality_bar(chat_id):
             return "No AI"
 
     prompts["functionality"] = prompts.apply(get_func, axis=1)
-
-    # # === BERT SCORE ===
-    # merged_bert = prompts.merge(bert, left_on="id", right_on="prompt_id", how="inner")
-    # bert_group = merged_bert.groupby("functionality")["bert_novelty"].mean()
-
-    # # === LPIPS ===
-    # # Ensure images_out is a list (some may be stored as JSON strings)
-    # prompts["images_out"] = prompts["images_out"].apply(
-    #     lambda x: eval(x) if isinstance(x, str) and x.startswith("[") else x
-    # )
-    # prompts_exploded = prompts.explode("images_out").rename(columns={"images_out": "image_id"})
-
-    # merged_lpips = prompts_exploded.merge(lpips, on="image_id", how="inner")
-    # lpips_group = merged_lpips.groupby("functionality")["lpips"].mean()
 
     # === Merge with BERT ===
     merged_bert = prompts.merge(bert, left_on="id", right_on="prompt_id", how="inner")
@@ -597,39 +644,70 @@ def update_functionality_bar(chat_id):
     Input("chat-selector", "value"),
     Input("wordcloud-mode", "value"),
     Input("insight-tab-store", "data"),
+    State("app-user-info", "data"),
     prevent_initial_call=True
 )
 
-def render_wordcloud(chat_id, mode, tab):
-    return update_tab_labels(chat_id), update_keywords_wordcloud(chat_id, mode, tab)
-    # return update_tab_labels(chat_id), update_keywords_wordcloud(chat_id, mode)
+def render_wordcloud(chat_id, mode, tab, user_info):
+    user_id = user_info.get("user_id")
+    return update_tab_labels(chat_id, user_id), update_keywords_wordcloud(chat_id, user_id, mode, tab)
+    # return update_tab_labels(chat_id), update_keywords_wordcloud(chat_id, user_id, mode, tab)
+# @callback(
+#     Output("insight-tab", "children"),
+#     Output("wordcloud-img", "src"),
+#     Input("chat-selector", "value"),
+#     Input("wordcloud-mode", "value"),
+#     Input("insight-tab-store", "data"),
+#     prevent_initial_call=True
+# )
+
+# def render_wordcloud(chat_id, mode, tab):
+#     return update_tab_labels(chat_id), update_keywords_wordcloud(chat_id, mode, tab)
 
 # POPULATE FUNCTIONALITY BAR CHART 
+# @callback(
+#     Output("functionality-bar", "figure"),
+#     Input("chat-selector", "value"),
+#     prevent_initial_call=True
+# )
+# def render_functionality_bar(chat_id):
+#     return update_functionality_bar(chat_id)
 @callback(
     Output("functionality-bar", "figure"),
     Input("chat-selector", "value"),
+    State("app-user-info", "data"),
     prevent_initial_call=True
 )
-def render_functionality_bar(chat_id):
-    return update_functionality_bar(chat_id)
+def render_functionality_bar(chat_id, user_info):
+    user_id = user_info.get("user_id")
+    return update_functionality_bar(chat_id, user_id)
 
 
 # POPULATE PIE CHART 
+# @callback(
+#     Output("utility-pie", "figure"),
+#     Input("chat-selector", "value"),
+#     prevent_initial_call=True
+# )
+# def update_pie_chart(chat_id):
+#     if chat_id is None:
+#         raise PreventUpdate
+#     return pie_chart_utility(chat_id)
+
 @callback(
     Output("utility-pie", "figure"),
     Input("chat-selector", "value"),
+    State('app-user-info', 'data'),
     prevent_initial_call=True
 )
-def update_pie_chart(chat_id):
-    if chat_id is None:
-        raise PreventUpdate
-    return pie_chart_utility(chat_id)
+def update_pie_chart(chat_id, user_info):
+    user_id = user_info.get("user_id")
+    return pie_chart_utility(chat_id, user_id)
 
 @callback(
     Output("chat-selector", "options"),
     Input("refresh-button", "n_clicks"),
     State('app-user-info', 'data'),
-    # prevent_initial_call=True
 )
 def populate_chat_dropdown(n_clicks, user_info):
     user_id = user_info.get("user_id")
@@ -639,40 +717,85 @@ def populate_chat_dropdown(n_clicks, user_info):
     with Database() as db:
         chats = db.fetch_chats_by_user(user_id)
         
-    options = [{"label": f"{chat['id']} — {chat['title']}", "value": chat['id']} for _, chat in chats.iterrows()]
+    # options = [{"label": f"{chat['id']} — {chat['title']}", "value": chat['id']} for _, chat in chats.iterrows()]
+    options = [{"label": "All My Chats", "value": "ALL"}] + [
+        {"label": f"{chat['id']} — {chat['title']}", "value": chat['id']} for _, chat in chats.iterrows()]
     return options
 ######### 
 
-def line_chart_guidances(chat_id):
+# def line_chart_guidances(chat_id):
+def line_chart_guidances(chat_id, user_id):
     if chat_id is None:
         raise PreventUpdate
 
     with Database() as db:
         df = db.fetch_all_guidance_metrics()
 
-    df = df[df['chat_id'] == chat_id].sort_values(by='depth')
+    # df = df[df['chat_id'] == chat_id].sort_values(by='depth')
+    df = filter_by_chat_or_user(df, chat_id, user_id).sort_values(by='depth')
 
     fig = go.Figure()
-    fig.add_trace(
-            go.Scatter(
-                        x=df['depth'], 
-                        y=df['prompt_guidance'], 
-                        mode='lines+markers', 
-                        name='Prompt Guidance', 
-                        line=dict(color=GD, width=2),
-                        marker=dict(symbol="circle", size=6)
+    
+    if chat_id == "ALL":
+        unique_chats = sorted(df['chat_id'].unique())
+        
+        def generate_color_variations(base_color, count):
+            variations = [GR, GREEN, "#3357FF", "#FF33F5", "#F5FF33", 
+                         "#33FFF5", "#FF8C33", "#8C33FF", "#33FF8C", "#FF3333",
+                         "#3333FF", "#FFFF33", "#FF33FF", "#33FFFF", "#8CFF33",
+                         "#FF338C", "#338CFF", "#8C8CFF", "#FF8CFF", "#8CFFFF"]
+            return variations[:count] if count <= len(variations) else variations * ((count // len(variations)) + 1)
+        
+        colors = generate_color_variations(None, len(unique_chats))
+        
+        for i, chat_id_val in enumerate(unique_chats):
+            chat_df = df[df['chat_id'] == chat_id_val]
+            fig.add_trace(
+                go.Scatter(
+                    x=chat_df['depth'], 
+                    y=chat_df['prompt_guidance'], 
+                    mode='lines+markers', 
+                    name=f'Prompt Guidance (Chat {chat_id_val})', 
+                    line=dict(color=colors[i], width=2, dash='solid'),
+                    marker=dict(symbol="circle", size=6),
+                    legendgroup="prompt",
+                    showlegend=True
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=chat_df['depth'], 
+                    y=chat_df['image_guidance'], 
+                    mode='lines+markers', 
+                    name=f'Image Guidance (Chat {chat_id_val})', 
+                    line=dict(color=colors[i], width=2, dash='dash'),
+                    marker=dict(symbol="square", size=6),
+                    legendgroup="image",
+                    showlegend=True
+                )
+            )
+    else:
+        fig.add_trace(
+                go.Scatter(
+                            x=df['depth'], 
+                            y=df['prompt_guidance'], 
+                            mode='lines+markers', 
+                            name='Prompt Guidance', 
+                            line=dict(color=GD, width=2),
+                            marker=dict(symbol="circle", size=6)
+                        )
                     )
-                )
-    fig.add_trace(
-            go.Scatter(
-                        x=df['depth'], 
-                        y=df['image_guidance'], 
-                        mode='lines+markers', 
-                        name='Image Guidance', 
-                        line=dict(color=GR, width=2),
-                        marker=dict(symbol="circle", size=6)
-                     )
-                )
+        fig.add_trace(
+                go.Scatter(
+                            x=df['depth'], 
+                            y=df['image_guidance'], 
+                            mode='lines+markers', 
+                            name='Image Guidance', 
+                            line=dict(color=GR, width=2),
+                            marker=dict(symbol="circle", size=6)
+                         )
+                    )
+    
     fig.update_layout(
                 title="Prompt and Image Guidance over Generations", 
                 height=G_HEIGHT,
@@ -693,57 +816,113 @@ def line_chart_guidances(chat_id):
     return fig
 
 ## Adjust to take tab-dependent values in 
-def line_chart_change_amplitude(chat_id, tab="overall"):
+# def line_chart_change_amplitude(chat_id, tab="overall"):
+def line_chart_change_amplitude(chat_id, user_id, tab="overall"):
     if chat_id is None:
         raise PreventUpdate
 
     with Database() as db:
-        prompts = db.fetch_prompts_by_chat(chat_id)
-        bert_df = db.fetch_all_bertscore_metrics()
-        lpips_df = db.fetch_all_lpips_metrics()
+        if chat_id == "ALL":
+            prompts = db.fetch_prompts_by_user(user_id)
+            bert_df = db.fetch_all_bertscore_metrics()
+            bert_df = bert_df[bert_df['user_id'] == user_id]
+            lpips_df = db.fetch_all_lpips_metrics()
+            lpips_df = lpips_df[lpips_df['user_id'] == user_id]
+        else:
+            prompts = db.fetch_prompts_by_chat(chat_id)
+            bert_df = db.fetch_all_bertscore_metrics()
+            lpips_df = db.fetch_all_lpips_metrics()
 
-    prompts = prompts[prompts['chat_id'] == chat_id]
+    # prompts = prompts[prompts['chat_id'] == chat_id]
+    prompts = filter_by_chat_or_user(prompts, chat_id, user_id)
     prompts = filter_by_mode(prompts, tab)
 
     valid_prompt_ids = prompts["id"].tolist()
-    valid_depths = prompts["depth"].tolist()
+    valid_depths = prompts[["chat_id", "depth"]].values.tolist() if chat_id == "ALL" else prompts["depth"].tolist()
 
-    bert_df = bert_df[(bert_df["chat_id"] == chat_id) & (bert_df["depth"] > 1)]
-    lpips_df = lpips_df[(lpips_df["chat_id"] == chat_id) & (lpips_df["depth"] > 1)]
-
-    bert_df = bert_df[bert_df["prompt_id"].isin(valid_prompt_ids)]
-    lpips_df = lpips_df[lpips_df["depth"].isin(valid_depths)]
+    if chat_id == "ALL":
+        bert_df = bert_df[(bert_df["depth"] > 1)]
+        lpips_df = lpips_df[(lpips_df["depth"] > 1)]
+        
+        valid_chat_depth = set((row[0], row[1]) for row in valid_depths)
+        bert_df = bert_df[bert_df.apply(lambda x: (x['chat_id'], x['depth']) in valid_chat_depth, axis=1)]
+        lpips_df = lpips_df[lpips_df.apply(lambda x: (x['chat_id'], x['depth']) in valid_chat_depth, axis=1)]
+    else:
+        bert_df = bert_df[(bert_df["chat_id"] == chat_id) & (bert_df["depth"] > 1)]
+        lpips_df = lpips_df[(lpips_df["chat_id"] == chat_id) & (lpips_df["depth"] > 1)]
+        bert_df = bert_df[bert_df["prompt_id"].isin(valid_prompt_ids)]
+        lpips_df = lpips_df[lpips_df["depth"].isin(valid_depths)]
 
     # Only keep depth >= 2
     # since depth = 1 corresponds to the initial prompt and image, metrics like
     # bert_novelty and lpips (which are comparative) aren't meaningful at that point.
-    # bert_df = bert_df[bert_df['chat_id'] == chat_id].sort_values(by='depth')
-    # lpips_df = lpips_df[lpips_df['chat_id'] == chat_id].sort_values(by='depth')
-    bert_df = bert_df[(bert_df['chat_id'] == chat_id) & (bert_df['depth'] > 1)].sort_values(by='depth')
-    lpips_df = lpips_df[(lpips_df['chat_id'] == chat_id) & (lpips_df['depth'] > 1)].sort_values(by='depth')
+    bert_df = bert_df[bert_df["depth"] > 1].sort_values(by='depth')
+    lpips_df = lpips_df[lpips_df["depth"] > 1].sort_values(by='depth')
 
 
     fig = go.Figure()
-    fig.add_trace(
-            go.Scatter(
-                        x=bert_df['depth'], 
-                        y=bert_df['bert_novelty'], 
-                        mode='lines+markers', 
-                        name='BERT Novelty', 
-                        line=dict(color=GD, width=2),
-                        marker=dict(symbol="circle", size=6)
+    
+    if chat_id == "ALL":
+        unique_chats = sorted(bert_df['chat_id'].unique())
+        
+        def generate_color_variations(base_color, count):
+            variations = [GR, GREEN, "#3357FF", "#FF33F5", "#F5FF33", 
+                         "#33FFF5", "#FF8C33", "#8C33FF", "#33FF8C", "#FF3333",
+                         "#3333FF", "#FFFF33", "#FF33FF", "#33FFFF", "#8CFF33",
+                         "#FF338C", "#338CFF", "#8C8CFF", "#FF8CFF", "#8CFFFF"]
+            return variations[:count] if count <= len(variations) else variations * ((count // len(variations)) + 1)
+        
+        colors = generate_color_variations(None, len(unique_chats))
+        
+        for i, chat_id_val in enumerate(unique_chats):
+            chat_bert_df = bert_df[bert_df['chat_id'] == chat_id_val]
+            chat_lpips_df = lpips_df[lpips_df['chat_id'] == chat_id_val]
+            
+            fig.add_trace(
+                go.Scatter(
+                    x=chat_bert_df['depth'], 
+                    y=chat_bert_df['bert_novelty'], 
+                    mode='lines+markers', 
+                    name=f'BERT Novelty (Chat {chat_id_val})', 
+                    line=dict(color=colors[i], width=2, dash='solid'),
+                    marker=dict(symbol="circle", size=6),
+                    legendgroup="bert",
+                    showlegend=True
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=chat_lpips_df['depth'], 
+                    y=chat_lpips_df['lpips'], 
+                    mode='lines+markers', 
+                    name=f'LPIPS (Chat {chat_id_val})', 
+                    line=dict(color=colors[i], width=2, dash='dash'),
+                    marker=dict(symbol="square", size=6),
+                    legendgroup="lpips",
+                    showlegend=True
+                )
+            )
+    else:
+        fig.add_trace(
+                go.Scatter(
+                            x=bert_df['depth'], 
+                            y=bert_df['bert_novelty'], 
+                            mode='lines+markers', 
+                            name='BERT Novelty', 
+                            line=dict(color=GD, width=2),
+                            marker=dict(symbol="circle", size=6)
+                        )
                     )
-                )
-    fig.add_trace(
-            go.Scatter(
-                        x=lpips_df['depth'], 
-                        y=lpips_df['lpips'], 
-                        mode='lines+markers', 
-                        name='LPIPS', 
-                        line=dict(color=GR, width=2),
-                        marker=dict(symbol="circle", size=6)
-                     )
-                )
+        fig.add_trace(
+                go.Scatter(
+                            x=lpips_df['depth'], 
+                            y=lpips_df['lpips'], 
+                            mode='lines+markers', 
+                            name='LPIPS', 
+                            line=dict(color=GR, width=2),
+                            marker=dict(symbol="circle", size=6)
+                         )
+                    )
     fig.update_layout(
                 # title="Prompt Novelty and Image Change Amplitude", 
                 title=f"Prompt Novelty and Image Change Amplitude ({tab.title()})",
@@ -766,16 +945,29 @@ def line_chart_change_amplitude(chat_id, tab="overall"):
 
 @callback(
     Output({'type': 'graph', 'index': ALL}, 'figure'),
-    #Output({'type': 'graph', 'index': 'bert-lpips-amplitude'}, 'figure'),
     Input('chat-selector', 'value'),
     Input('insight-tab-store', 'data'),
-    prevent_initial_call=True)
-
-def update_graphs(chat_id, tab):
-    if chat_id is None:
-        raise PreventUpdate
+    State('app-user-info', 'data'),
+    prevent_initial_call=True
+)
+def update_graphs(chat_id, tab, user_info):
+    user_id = user_info.get("user_id")
     return (
-        line_chart_guidances(chat_id),
-        # line_chart_change_amplitude(chat_id)
-        line_chart_change_amplitude(chat_id, tab)
+        line_chart_guidances(chat_id, user_id),
+        line_chart_change_amplitude(chat_id, user_id, tab)
     )
+# @callback(
+#     Output({'type': 'graph', 'index': ALL}, 'figure'),
+#     #Output({'type': 'graph', 'index': 'bert-lpips-amplitude'}, 'figure'),
+#     Input('chat-selector', 'value'),
+#     Input('insight-tab-store', 'data'),
+#     prevent_initial_call=True)
+
+# def update_graphs(chat_id, tab):
+#     if chat_id is None:
+#         raise PreventUpdate
+#     return (
+#         line_chart_guidances(chat_id),
+#         # line_chart_change_amplitude(chat_id)
+#         line_chart_change_amplitude(chat_id, tab)
+#     )
