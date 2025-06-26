@@ -64,7 +64,7 @@ class VLM():
             'Each suggestion should be a fresh, creative prompt that relates to the image content but does not repeat or directly reference the original prompt text. '
             'Focus on different aspects, styles, or interpretations that the image could inspire. '
             f'Return a JSON array of {n_suggestions} strings, like: {format_example}. '
-            'Do not include any explanation or other text.'
+            'Do not include any explanation or other text. Make sure each suggestion contains no more than 25 words.'
         )
         # format_example = str([f"suggestion {i+1}" for i in range(n_suggestions)])
         # suggestion_prompt = (
