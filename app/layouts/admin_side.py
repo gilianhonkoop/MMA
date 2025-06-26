@@ -55,8 +55,8 @@ pie_chart_palette = ["#adb5bd", "#6c757d","#495057","#f3f3f3"]
 GREEN = green_palette[0]
 BG = "rgba(177, 183, 143, 0.3)"
 Wordcloud_BG = "#e9edd8"
-GD = green_palette[0] # graph dark -- prompt change 
-GR = "#bc4749" # graph red -- image change 
+GD = green_palette[0]
+GR = "#bc4749"
 G_HEIGHT = 350
 
 def create_admin_layout():
@@ -215,7 +215,6 @@ def render_figures(tab):
 
 ### STATIC ELEMENTS 
 # Prompt Novelty
-# def calculate_average_prompt_novelty(chat_id):
 def calculate_average_prompt_novelty(chat_id, user_id):
     if chat_id is None:
         raise PreventUpdate
@@ -224,7 +223,6 @@ def calculate_average_prompt_novelty(chat_id, user_id):
         df = db.fetch_all_bertscore_metrics()
 
     df = filter_by_chat_or_user(df, chat_id, user_id)
-    # df = df[df['chat_id'] == chat_id]
 
     if df.empty:
         return 0.0
@@ -232,7 +230,6 @@ def calculate_average_prompt_novelty(chat_id, user_id):
     return round(df['bert_novelty'].mean(), 3)
 
 # Image Novelty/Change
-# def calculate_average_image_change(chat_id):
 def calculate_average_image_change(chat_id, user_id):
     if chat_id is None:
         raise PreventUpdate
@@ -241,20 +238,17 @@ def calculate_average_image_change(chat_id, user_id):
         df = db.fetch_all_lpips_metrics()
 
     df = filter_by_chat_or_user(df, chat_id, user_id)
-    # df = df[df['chat_id'] == chat_id]
     if df.empty:
         return 0.0
 
     return round(df['lpips'].mean(), 3)
 
 # Prompt Length
-# def calculate_average_prompt_length(chat_id):
 def calculate_average_prompt_length(chat_id, user_id):
     if chat_id is None:
         raise PreventUpdate
 
     with Database() as db:
-        # prompts = db.fetch_prompts_by_chat(chat_id)
         prompts = db.fetch_prompts_by_user(user_id)
 
     prompts = filter_by_chat_or_user(prompts, chat_id, user_id)
@@ -265,13 +259,6 @@ def calculate_average_prompt_length(chat_id, user_id):
     prompt_lengths = prompts['text'].dropna().apply(lambda t: len(t.split()))
     return round(prompt_lengths.mean(), 1)
 
-# Prompt novelty, image change and prompt length
-# def calculate_summary_statistics(chat_id):
-#     return {
-#         "avg_prompt_novelty": calculate_average_prompt_novelty(chat_id),
-#         "avg_image_change": calculate_average_image_change(chat_id),
-#         "avg_prompt_length": calculate_average_prompt_length(chat_id)
-#     }
 
 def calculate_summary_statistics(chat_id, user_id):
     return {
@@ -283,7 +270,6 @@ def calculate_summary_statistics(chat_id, user_id):
 
 ### Pie Chart Functionality
 # Get the percentages for each of the functionalities
-# def get_functionality_percentages(chat_id):
 def get_functionality_percentages(chat_id, user_id):
     if chat_id is None:
         raise PreventUpdate
@@ -291,7 +277,6 @@ def get_functionality_percentages(chat_id, user_id):
     with Database() as db:
         df = db.fetch_all_functionality_metrics()
 
-    # df = df[df['chat_id'] == chat_id]
     df = filter_by_chat_or_user(df, chat_id, user_id)
     if df.empty:
         raise PreventUpdate
@@ -324,17 +309,8 @@ def get_functionality_percentages(chat_id, user_id):
             str(round(row['used_both_pct'], 1)),
             str(round(row['no_ai_pct'], 1)))
 
-    # row = df.iloc[0]
-    # return (
-    #     str(round(row['used_suggestion_pct'], 1)),
-    #     str(round(row['used_enhancement_pct'], 1)),
-    #     str(round(row['used_both_pct'], 1)),
-    #     str(round(row['no_ai_pct'], 1))
-    # )
 
 # View the Percentages of each Functionality as a Pie Chart
-# def pie_chart_utility(chat_id):
-#     values = get_functionality_percentages(chat_id) 
 def pie_chart_utility(chat_id, user_id):
     values = get_functionality_percentages(chat_id, user_id)
     labels = ["Suggestions", "Enhancement", "S + E", "No AI"]
@@ -352,7 +328,6 @@ def pie_chart_utility(chat_id, user_id):
 
 
 ### The Keyword wordcloud
-# def update_keywords_wordcloud(chat_id, mode, tab="overall"):
 def update_keywords_wordcloud(chat_id, user_id, mode, tab="overall"):
     if chat_id is None:
         raise PreventUpdate
@@ -368,15 +343,10 @@ def update_keywords_wordcloud(chat_id, user_id, mode, tab="overall"):
     df_merge = df.merge(
     prompts_df[['id', 'chat_id', 'used_suggestion', 'is_enhanced']],
     left_on='prompt_id', right_on='id', how='inner')
-    # assert (df_merge["chat_id_x"] == df_merge["chat_id_y"]).all()
     df = df_merge.drop(columns=["chat_id_x"], errors="ignore") \
        .rename(columns={"chat_id_y": "chat_id"})
     df = filter_by_chat_or_user(df, chat_id, user_id)
     df = df.dropna(subset=['relevant_words', 'depth'])
-    # df = df.merge(
-    #     prompts_df[['id', 'used_suggestion', 'is_enhanced']],
-    #     left_on='prompt_id', right_on='id', how='left')
-    # df = df[df['chat_id'] == chat_id].dropna(subset=['relevant_words', 'depth'])
     df['used_suggestion'] = df['used_suggestion'].astype(bool)
     df['is_enhanced'] = df['is_enhanced'].astype(bool)
     df['interaction_mode'] = df.apply(get_mode, axis=1)
@@ -473,7 +443,7 @@ def update_keywords_wordcloud(chat_id, user_id, mode, tab="overall"):
     State('app-user-info', 'data'),
     prevent_initial_call=True
 )
-# def update_statistics_display(chat_id):
+
 def update_statistics_display(chat_id, user_info):
     if chat_id is None:
         raise PreventUpdate
@@ -481,7 +451,6 @@ def update_statistics_display(chat_id, user_info):
     user_id = user_info.get("user_id")
     
     # Recompute LPIPS records before visualizing anything
-    # recompute_lpips_for_chat(chat_id)
     if chat_id == "ALL":
         recompute_lpips_for_user(user_id)
     else:
@@ -527,7 +496,6 @@ def update_statistics_display(chat_id, user_info):
 
 
 # This changes the tabs when clicked on 
-# def update_tab_labels(chat_id):
 def update_tab_labels(chat_id, user_id):
     if chat_id is None:
         raise PreventUpdate
@@ -551,13 +519,11 @@ def update_tab_labels(chat_id, user_id):
     ]
 
 # This returns the Prompt/Image Change Amplitude Chart
-# def update_functionality_bar(chat_id):
 def update_functionality_bar(chat_id, user_id):
     if chat_id is None:
         return go.Figure()
     
     # Recompute LPIPS records before visualizing anything
-    # recompute_lpips_for_chat(chat_id)
     if chat_id == "ALL":
         recompute_lpips_for_user(user_id)
     else:
@@ -568,10 +534,6 @@ def update_functionality_bar(chat_id, user_id):
         prompts = db.fetch_prompts_by_user(user_id)
         bert = db.fetch_all_bertscore_metrics()
         lpips = db.fetch_all_lpips_metrics()
-
-        # prompts = db.fetch_prompts_by_chat(chat_id)
-        # bert = db.fetch_bertscore_by_chat(chat_id)
-        # lpips = db.fetch_lpips_by_chat(chat_id)
 
     # Filter each dataframe down to what we need
     prompts = filter_by_chat_or_user(prompts, chat_id, user_id)
@@ -619,10 +581,9 @@ def update_functionality_bar(chat_id, user_id):
     ))
 
     fig.update_layout(
-        # title="Mean Prompt Novelty and Image Change per dialogue feature",
             title={"text": "Mean Prompt Novelty and Image Change<br>per dialogue feature",
-                   "x": 0.5,  # Center horizontally
-                   "xanchor": "center",  # Anchor in the middle
+                   "x": 0.5,
+                   "xanchor": "center",
                    "font": dict(size=16)},
         xaxis_title="Feature",
         yaxis_title="Score",
@@ -651,27 +612,8 @@ def update_functionality_bar(chat_id, user_id):
 def render_wordcloud(chat_id, mode, tab, user_info):
     user_id = user_info.get("user_id")
     return update_tab_labels(chat_id, user_id), update_keywords_wordcloud(chat_id, user_id, mode, tab)
-    # return update_tab_labels(chat_id), update_keywords_wordcloud(chat_id, user_id, mode, tab)
-# @callback(
-#     Output("insight-tab", "children"),
-#     Output("wordcloud-img", "src"),
-#     Input("chat-selector", "value"),
-#     Input("wordcloud-mode", "value"),
-#     Input("insight-tab-store", "data"),
-#     prevent_initial_call=True
-# )
-
-# def render_wordcloud(chat_id, mode, tab):
-#     return update_tab_labels(chat_id), update_keywords_wordcloud(chat_id, mode, tab)
 
 # POPULATE FUNCTIONALITY BAR CHART 
-# @callback(
-#     Output("functionality-bar", "figure"),
-#     Input("chat-selector", "value"),
-#     prevent_initial_call=True
-# )
-# def render_functionality_bar(chat_id):
-#     return update_functionality_bar(chat_id)
 @callback(
     Output("functionality-bar", "figure"),
     Input("chat-selector", "value"),
@@ -684,16 +626,6 @@ def render_functionality_bar(chat_id, user_info):
 
 
 # POPULATE PIE CHART 
-# @callback(
-#     Output("utility-pie", "figure"),
-#     Input("chat-selector", "value"),
-#     prevent_initial_call=True
-# )
-# def update_pie_chart(chat_id):
-#     if chat_id is None:
-#         raise PreventUpdate
-#     return pie_chart_utility(chat_id)
-
 @callback(
     Output("utility-pie", "figure"),
     Input("chat-selector", "value"),
@@ -723,7 +655,6 @@ def populate_chat_dropdown(n_clicks, user_info):
     return options
 ######### 
 
-# def line_chart_guidances(chat_id):
 def line_chart_guidances(chat_id, user_id):
     if chat_id is None:
         raise PreventUpdate
@@ -731,7 +662,6 @@ def line_chart_guidances(chat_id, user_id):
     with Database() as db:
         df = db.fetch_all_guidance_metrics()
 
-    # df = df[df['chat_id'] == chat_id].sort_values(by='depth')
     df = filter_by_chat_or_user(df, chat_id, user_id).sort_values(by='depth')
 
     fig = go.Figure()
@@ -816,7 +746,6 @@ def line_chart_guidances(chat_id, user_id):
     return fig
 
 ## Adjust to take tab-dependent values in 
-# def line_chart_change_amplitude(chat_id, tab="overall"):
 def line_chart_change_amplitude(chat_id, user_id, tab="overall"):
     if chat_id is None:
         raise PreventUpdate
@@ -956,18 +885,3 @@ def update_graphs(chat_id, tab, user_info):
         line_chart_guidances(chat_id, user_id),
         line_chart_change_amplitude(chat_id, user_id, tab)
     )
-# @callback(
-#     Output({'type': 'graph', 'index': ALL}, 'figure'),
-#     #Output({'type': 'graph', 'index': 'bert-lpips-amplitude'}, 'figure'),
-#     Input('chat-selector', 'value'),
-#     Input('insight-tab-store', 'data'),
-#     prevent_initial_call=True)
-
-# def update_graphs(chat_id, tab):
-#     if chat_id is None:
-#         raise PreventUpdate
-#     return (
-#         line_chart_guidances(chat_id),
-#         # line_chart_change_amplitude(chat_id)
-#         line_chart_change_amplitude(chat_id, tab)
-#     )

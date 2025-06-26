@@ -3,7 +3,7 @@ from dash import dcc, html, callback, Input, Output
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 
-from layouts.emma_trial_admin_side import create_admin_layout
+from layouts.admin_side import create_admin_layout
 
 # Initialize Dash app with Bootstrap theme
 app = dash.Dash(__name__, 
