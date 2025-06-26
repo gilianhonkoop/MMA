@@ -5,6 +5,7 @@ import plotly.graph_objs as go
 import dash_bootstrap_components as dbc
 from dash.exceptions import PreventUpdate
 from db.database import Database
+from db.recompute_lpips import recompute_lpips_for_chat
 import numpy as np
 import pandas as pd
 from wordcloud import WordCloud
@@ -427,6 +428,9 @@ def update_keywords_wordcloud(chat_id, mode, tab="overall"):
 def update_statistics_display(chat_id):
     if chat_id is None:
         raise PreventUpdate
+    
+    # Recompute LPIPS records before visualizing anything
+    recompute_lpips_for_chat(chat_id)
 
     stats = calculate_summary_statistics(chat_id)
 
