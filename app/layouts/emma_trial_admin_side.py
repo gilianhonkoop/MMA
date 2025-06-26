@@ -579,7 +579,6 @@ def update_functionality_bar(chat_id, user_id):
     lpips = filter_by_chat_or_user(lpips, chat_id, user_id)
 
     # Preprocessing
-    prompts = prompts.copy()
     prompts["used_suggestion"] = prompts["used_suggestion"].astype(bool)
     prompts["is_enhanced"] = prompts["is_enhanced"].astype(bool)
 
@@ -736,39 +735,67 @@ def line_chart_guidances(chat_id, user_id):
     df = filter_by_chat_or_user(df, chat_id, user_id).sort_values(by='depth')
 
     fig = go.Figure()
-    # fig.add_trace(
-    #         go.Scatter(
-    #                     x=df['depth'], 
-    #                     y=df['prompt_guidance'], 
-    #                     mode='lines+markers', 
-    #                     name='Prompt Guidance', 
-    #                     line=dict(color=GD, width=2),
-    #                     marker=dict(symbol="circle", size=6)
-    #                 )
-    #             )
-    # fig.add_trace(
-    #         go.Scatter(
-    #                     x=df['depth'], 
-    #                     y=df['image_guidance'], 
-    #                     mode='lines+markers', 
-    #                     name='Image Guidance', 
-    #                     line=dict(color=GR, width=2),
-    #                     marker=dict(symbol="circle", size=6)
-    #                  )
-    #             )
-    for cid, group in df.groupby('chat_id'):
-        fig.add_trace(go.Scatter(
-            x=group['depth'], y=group['prompt_guidance'],
-            mode='lines+markers',
-            name=f'Prompt Guidance (Chat {cid})',
-            line=dict(color=GD, width=2),
-            marker=dict(size=6)))
-        fig.add_trace(go.Scatter(
-            x=group['depth'], y=group['image_guidance'],
-            mode='lines+markers',
-            name=f'Image Guidance (Chat {cid})',
-            line=dict(color=GR, width=2),
-            marker=dict(size=6)))
+    
+    if chat_id == "ALL":
+        unique_chats = sorted(df['chat_id'].unique())
+        
+        def generate_color_variations(base_color, count):
+            variations = [GR, GREEN, "#3357FF", "#FF33F5", "#F5FF33", 
+                         "#33FFF5", "#FF8C33", "#8C33FF", "#33FF8C", "#FF3333",
+                         "#3333FF", "#FFFF33", "#FF33FF", "#33FFFF", "#8CFF33",
+                         "#FF338C", "#338CFF", "#8C8CFF", "#FF8CFF", "#8CFFFF"]
+            return variations[:count] if count <= len(variations) else variations * ((count // len(variations)) + 1)
+        
+        colors = generate_color_variations(None, len(unique_chats))
+        
+        for i, chat_id_val in enumerate(unique_chats):
+            chat_df = df[df['chat_id'] == chat_id_val]
+            fig.add_trace(
+                go.Scatter(
+                    x=chat_df['depth'], 
+                    y=chat_df['prompt_guidance'], 
+                    mode='lines+markers', 
+                    name=f'Prompt Guidance (Chat {chat_id_val})', 
+                    line=dict(color=colors[i], width=2, dash='solid'),
+                    marker=dict(symbol="circle", size=6),
+                    legendgroup="prompt",
+                    showlegend=True
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=chat_df['depth'], 
+                    y=chat_df['image_guidance'], 
+                    mode='lines+markers', 
+                    name=f'Image Guidance (Chat {chat_id_val})', 
+                    line=dict(color=colors[i], width=2, dash='dash'),
+                    marker=dict(symbol="square", size=6),
+                    legendgroup="image",
+                    showlegend=True
+                )
+            )
+    else:
+        fig.add_trace(
+                go.Scatter(
+                            x=df['depth'], 
+                            y=df['prompt_guidance'], 
+                            mode='lines+markers', 
+                            name='Prompt Guidance', 
+                            line=dict(color=GD, width=2),
+                            marker=dict(symbol="circle", size=6)
+                        )
+                    )
+        fig.add_trace(
+                go.Scatter(
+                            x=df['depth'], 
+                            y=df['image_guidance'], 
+                            mode='lines+markers', 
+                            name='Image Guidance', 
+                            line=dict(color=GR, width=2),
+                            marker=dict(symbol="circle", size=6)
+                         )
+                    )
+    
     fig.update_layout(
                 title="Prompt and Image Guidance over Generations", 
                 height=G_HEIGHT,
@@ -795,50 +822,107 @@ def line_chart_change_amplitude(chat_id, user_id, tab="overall"):
         raise PreventUpdate
 
     with Database() as db:
-        prompts = db.fetch_prompts_by_chat(chat_id)
-        bert_df = db.fetch_all_bertscore_metrics()
-        lpips_df = db.fetch_all_lpips_metrics()
+        if chat_id == "ALL":
+            prompts = db.fetch_prompts_by_user(user_id)
+            bert_df = db.fetch_all_bertscore_metrics()
+            bert_df = bert_df[bert_df['user_id'] == user_id]
+            lpips_df = db.fetch_all_lpips_metrics()
+            lpips_df = lpips_df[lpips_df['user_id'] == user_id]
+        else:
+            prompts = db.fetch_prompts_by_chat(chat_id)
+            bert_df = db.fetch_all_bertscore_metrics()
+            lpips_df = db.fetch_all_lpips_metrics()
 
     # prompts = prompts[prompts['chat_id'] == chat_id]
     prompts = filter_by_chat_or_user(prompts, chat_id, user_id)
-    bert_df = filter_by_chat_or_user(bert_df, chat_id, user_id)
-    lpips_df = filter_by_chat_or_user(lpips_df, chat_id, user_id)
     prompts = filter_by_mode(prompts, tab)
 
     valid_prompt_ids = prompts["id"].tolist()
-    valid_depths = prompts["depth"].tolist()
+    valid_depths = prompts[["chat_id", "depth"]].values.tolist() if chat_id == "ALL" else prompts["depth"].tolist()
 
-    bert_df = bert_df[bert_df["prompt_id"].isin(valid_prompt_ids)]
-    lpips_df = lpips_df[lpips_df["depth"].isin(valid_depths)]
+    if chat_id == "ALL":
+        bert_df = bert_df[(bert_df["depth"] > 1)]
+        lpips_df = lpips_df[(lpips_df["depth"] > 1)]
+        
+        valid_chat_depth = set((row[0], row[1]) for row in valid_depths)
+        bert_df = bert_df[bert_df.apply(lambda x: (x['chat_id'], x['depth']) in valid_chat_depth, axis=1)]
+        lpips_df = lpips_df[lpips_df.apply(lambda x: (x['chat_id'], x['depth']) in valid_chat_depth, axis=1)]
+    else:
+        bert_df = bert_df[(bert_df["chat_id"] == chat_id) & (bert_df["depth"] > 1)]
+        lpips_df = lpips_df[(lpips_df["chat_id"] == chat_id) & (lpips_df["depth"] > 1)]
+        bert_df = bert_df[bert_df["prompt_id"].isin(valid_prompt_ids)]
+        lpips_df = lpips_df[lpips_df["depth"].isin(valid_depths)]
 
     # Only keep depth >= 2
     # since depth = 1 corresponds to the initial prompt and image, metrics like
     # bert_novelty and lpips (which are comparative) aren't meaningful at that point.
-    bert_df = bert_df[bert_df["depth"] > 1]
-    lpips_df = lpips_df[lpips_df["depth"] > 1]
+    bert_df = bert_df[bert_df["depth"] > 1].sort_values(by='depth')
+    lpips_df = lpips_df[lpips_df["depth"] > 1].sort_values(by='depth')
 
 
     fig = go.Figure()
-    fig.add_trace(
-            go.Scatter(
-                        x=bert_df['depth'], 
-                        y=bert_df['bert_novelty'], 
-                        mode='lines+markers', 
-                        name='BERT Novelty', 
-                        line=dict(color=GD, width=2),
-                        marker=dict(symbol="circle", size=6)
+    
+    if chat_id == "ALL":
+        unique_chats = sorted(bert_df['chat_id'].unique())
+        
+        def generate_color_variations(base_color, count):
+            variations = [GR, GREEN, "#3357FF", "#FF33F5", "#F5FF33", 
+                         "#33FFF5", "#FF8C33", "#8C33FF", "#33FF8C", "#FF3333",
+                         "#3333FF", "#FFFF33", "#FF33FF", "#33FFFF", "#8CFF33",
+                         "#FF338C", "#338CFF", "#8C8CFF", "#FF8CFF", "#8CFFFF"]
+            return variations[:count] if count <= len(variations) else variations * ((count // len(variations)) + 1)
+        
+        colors = generate_color_variations(None, len(unique_chats))
+        
+        for i, chat_id_val in enumerate(unique_chats):
+            chat_bert_df = bert_df[bert_df['chat_id'] == chat_id_val]
+            chat_lpips_df = lpips_df[lpips_df['chat_id'] == chat_id_val]
+            
+            fig.add_trace(
+                go.Scatter(
+                    x=chat_bert_df['depth'], 
+                    y=chat_bert_df['bert_novelty'], 
+                    mode='lines+markers', 
+                    name=f'BERT Novelty (Chat {chat_id_val})', 
+                    line=dict(color=colors[i], width=2, dash='solid'),
+                    marker=dict(symbol="circle", size=6),
+                    legendgroup="bert",
+                    showlegend=True
+                )
+            )
+            fig.add_trace(
+                go.Scatter(
+                    x=chat_lpips_df['depth'], 
+                    y=chat_lpips_df['lpips'], 
+                    mode='lines+markers', 
+                    name=f'LPIPS (Chat {chat_id_val})', 
+                    line=dict(color=colors[i], width=2, dash='dash'),
+                    marker=dict(symbol="square", size=6),
+                    legendgroup="lpips",
+                    showlegend=True
+                )
+            )
+    else:
+        fig.add_trace(
+                go.Scatter(
+                            x=bert_df['depth'], 
+                            y=bert_df['bert_novelty'], 
+                            mode='lines+markers', 
+                            name='BERT Novelty', 
+                            line=dict(color=GD, width=2),
+                            marker=dict(symbol="circle", size=6)
+                        )
                     )
-                )
-    fig.add_trace(
-            go.Scatter(
-                        x=lpips_df['depth'], 
-                        y=lpips_df['lpips'], 
-                        mode='lines+markers', 
-                        name='LPIPS', 
-                        line=dict(color=GR, width=2),
-                        marker=dict(symbol="circle", size=6)
-                     )
-                )
+        fig.add_trace(
+                go.Scatter(
+                            x=lpips_df['depth'], 
+                            y=lpips_df['lpips'], 
+                            mode='lines+markers', 
+                            name='LPIPS', 
+                            line=dict(color=GR, width=2),
+                            marker=dict(symbol="circle", size=6)
+                         )
+                    )
     fig.update_layout(
                 # title="Prompt Novelty and Image Change Amplitude", 
                 title=f"Prompt Novelty and Image Change Amplitude ({tab.title()})",
