@@ -14,6 +14,11 @@ source .venv/bin/activate
 pip install -r all_requirements.txt
 ```
 
+To use the models from the Hugging Face Hub, create a token in your account, then create a `.env` file in the root directory of the project with the following content:
+```
+HUGGINGFACE_TOKEN=<your_huggingface_token>
+```
+
 ### Access compute node
 
 ##### For the A100
